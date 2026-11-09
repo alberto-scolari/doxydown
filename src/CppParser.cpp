@@ -322,8 +322,10 @@ RefVariant CppParser::make_nested_namespace(
       const bool visible = is_last and final_visible;
       FwdRef<NamespaceEntity> child = ps.inserter.add_namespace(*previous_opt, decl, name_coords, ps.file,
         start_line, end_line, std::move(d), visible, full_name_start);
+#ifdef DXM_DEBUG
       std::format_to(std::ostream_iterator<char>(std::cout), ">> nested namespace \"{}\" created under {}: {:?}\n",
         full_name_start, *previous_opt, child);
+#endif //DXM_DEBUG
       previous_opt = child;
     }
     if (not is_last) {
@@ -345,8 +347,10 @@ FwdRef<NamespaceEntity> CppParser::make_single_namespace(
   full_name_start.append(match_state.name.within(ps.file->get_content()));
   auto child = ps.inserter.add_namespace(parent, decl_view, name_coords,
     ps.file, start_line, end_line, std::move(doc), final_visible, std::move(full_name_start));
+#ifdef DXM_DEBUG
   std::format_to(std::ostream_iterator<char>(std::cout), ">> namespace \"{}\" created under {}: {:?}\n",
     child->get_full_name(), parent, child);
+#endif //DXM_DEBUG
   return child;
 }
 
@@ -373,8 +377,10 @@ void CppParser::register_entity(ParserState& parser_state, const EntityFieldsMat
   std::optional<RefVariant> child;
   if (entity_match.entity_type != QueryCppNodes::NAMESPACE) {
     child = make_entity(entity_match, parent, query, parser_state, docs);
+#ifdef DXM_DEBUG
     std::format_to(std::ostream_iterator<char>(std::cout), ">> {} \"{}\" created under {}: {:?}\n",
       child->get_entity_name(), child->get_name(), parent, *child);
+#endif //DXM_DEBUG
   } else if (not entity_match.is_nested) {
     child = make_single_namespace(entity_match, parent, parser_state, std::move(docs));
   } else {

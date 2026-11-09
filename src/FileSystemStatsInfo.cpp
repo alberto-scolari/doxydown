@@ -4,7 +4,9 @@
 #include <format>
 #include <stdexcept>
 
+#ifdef DXM_DEBUG
 #include <iostream>
+#endif //DXM_DEBUG
 
 std::optional<FwdRef<FileEntity>> FileSystemStatsInfo::do_lookup_file(path_str_view path) {
   auto it = files_map.find(path);
@@ -71,7 +73,7 @@ void FileSystemStatsInfo::add_file(const std::filesystem::path& path, FwdRef<Fil
   auto pit = get_or_create_path(DEF_ROOT_PATH);
   pit->second.subdirs.insert(it->first);
 }
-
+#ifdef DXM_DEBUG
 void FileSystemStatsInfo::explore() const {
   std::cout << "DIRS\n";
   for(const auto& [k, v]: dir_info_map) {
@@ -97,6 +99,7 @@ void FileSystemStatsInfo::explore() const {
     std::cout << "----- " << k << "\n";
   }
 }
+#endif //DXM_DEBUG
 
 void FileSystemStatsInfo::remove_file(const std::filesystem::path& filepath) {
   namespace fs = std::filesystem;

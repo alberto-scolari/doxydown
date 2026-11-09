@@ -355,7 +355,9 @@ void Driver::aggregate_stats() {
       dirinfo.stats += fsinfo.lookup_dir(sd)->get().stats;
     }
   }
+#ifdef DXM_DEBUG
   fsinfo.explore();
+#endif //DXM_DEBUG
 }
 
 bool Driver::has_coverage() const noexcept {

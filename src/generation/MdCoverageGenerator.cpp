@@ -518,7 +518,9 @@ void MdCoverageGenerator::generate(const FileSystemStatsInfo& fsinfo) {
   for (const auto& dirdata: dag_dfs_traverse<DfsTraversalType::BOTH>(controller)) {
     const auto& [dirpath, dirinfo] = dirdata.data;
     if (dirdata.pre) {
+#ifdef DXM_DEBUG
       std::cout << "-- dir: " << dirpath << std::endl;
+#endif //DXM_DEBUG
       const bool is_not_root = dirpath != FileSystemStatsInfo::DEF_ROOT_PATH;
       std::filesystem::path outpath = is_not_root ?  output_root / dirpath : output_root;
       std::filesystem::create_directories(outpath);
@@ -535,7 +537,9 @@ void MdCoverageGenerator::generate(const FileSystemStatsInfo& fsinfo) {
       render_dir_coverage(info, title);
     } else {
       for(const auto& fe: dirinfo.files) {
+#ifdef DXM_DEBUG
         std::cout << "-- file: " << fe->get_path() << std::endl;
+#endif //DXM_DEBUG
         render_file_coverage(fscleaner, output_root, fe);
       }
     }

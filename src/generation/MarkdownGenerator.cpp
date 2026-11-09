@@ -246,8 +246,10 @@ template<entity T> void MarkdownGenerator::render_entity(
 void MarkdownGenerator::render_entity(const EntityRegistry& registry, const std::filesystem::path& output, const RefVariant& root, const std::string_view& sanitized_name, const std::optional<std::string_view>& coverage_directory) {
   constexpr std::string_view filename = "index.md";
   const std::string_view dirname = root.is_type<RootEntity>() ? "" : sanitized_name;
+#ifdef DXM_DEBUG
   sink_t csink;
   csink.println("\tdirname \"{}\", filename \"{}\", output \"{}\"", dirname, filename, output.native());
+#endif //DXM_DEBUG
   std::filesystem::path file = output;
   if (dirname.size() > 0) {
     file /= dirname;
@@ -269,12 +271,17 @@ void MarkdownGenerator::render_entity(const EntityRegistry& registry, const std:
 
 void MarkdownGenerator::generate(const EntityRegistry& registry,
   const std::optional<std::string_view>& coverage_directory) {
+#ifdef DXM_DEBUG
   sink_t sink;
+#endif //DXM_DEBUG
+
   EntityStackController controller{registry, output};
   for (const auto& [v, sanitized_name, output_path]:
     dag_dfs_traverse(controller)) {
+#ifdef DXM_DEBUG
     sink.println("- getting entity: {} - \"{}\" - [sanitized: '{}'] on path {}",
       v.get_entity_name(), v.get_name(), sanitized_name, output_path.native());
+#endif //DXM_DEBUG
     if (v.is_visible()) {
       render_entity(registry, output_path, v, sanitized_name, coverage_directory);
     }

@@ -1,0 +1,18 @@
+[submodule "contrib/tree-sitter-cpp"]
+	path = contrib/tree-sitter-cpp
+	url = https://github.com/tree-sitter/tree-sitter-cpp
+[submodule "contrib/tree-sitter"]
+	path = contrib/tree-sitter
+	url = https://github.com/tree-sitter/tree-sitter
+[submodule "contrib/glob"]
+	path = contrib/glob
+	url = https://github.com/p-ranav/glob
+[submodule "contrib/CLI11"]
+	path = contrib/CLI11
+	url = https://github.com/CLIUtils/CLI11
+[submodule "contrib/libyaml"]
+	path = contrib/libyaml
+	url = https://github.com/yaml/libyaml
+[submodule "contrib/tree-sitter-cuda"]
+	path = contrib/tree-sitter-cuda
+	url = https://github.com/tree-sitter-grammars/tree-sitter-cuda

@@ -1,0 +1,60 @@
+#pragma once
+
+#include "DocToken.hpp"
+#include "TextLineCursor.hpp"
+
+#include <string>
+
+/**
+ * Documentation of an entity.
+ *
+ * @ingroup developer
+ */
+struct Doc {
+  /**
+   * Constructor.
+   *
+   * @param comment Comment from which to populate documentation.
+   * @param init_indent Initial indent level.
+   * @param style Markdown style.
+   */
+  Doc(const TextLineCursor &comment, const int init_indent,
+      const std::string& style);
+
+  /**
+   * Add an indent to the docs in the given style.
+   *
+   * @param indent Indentation level.
+   * @param style Markdown style.
+   */
+  void add_indent(const int indent, const std::string& style);
+
+  /**
+   * Content of the documentation.
+   */
+  std::string docs;
+
+  /**
+   * Group to which the entity belongs, obtained from @ingroup in the
+   * documentation comment.
+   */
+  TextLineCursor ingroup;
+
+  /**
+   * Opening token, used to determine the type of comment.
+   */
+  DocToken open;
+
+  /**
+   * Current indent level of the documentation comment for this entity. This
+   * is used for tracking indenting across multiple end-of-line comments, for
+   * example following a @@note command, each following line should be
+   * indented until the end of the paragraph.
+   */
+  int indent;
+
+  /**
+   * Hide the associated entity?
+   */
+  bool hide;
+};

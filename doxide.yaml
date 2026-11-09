@@ -1,0 +1,24 @@
+title: Demo
+description: |
+    These pages demonstrate some of the features of Doxide, and also serve as
+    a test corpus. They are generated from the source files in the
+    [demo](https://github.com/lawmurray/doxide/tree/main/demo) directory of
+    the repository, as well as from the source code of Doxide itself. This
+    first page demonstrates how [groups](../organizing) can be used to
+    organize documentation.
+files:
+  - "src/**.hpp"
+  - "src/**.cpp"
+  - "demo/*.hpp"
+output: docs
+groups:
+  - name: parsing
+    title: Parsing
+    description: Demonstration and test of some parsing capabilities, including basics such as variables, functions, operators and types, and more complex forms such as elaborate templates and SFINAE.
+  - name: presentation
+    title: Presentation
+    description: Demonstration and test of Markdown elements, such as code, syntax highlighting, tables, images, and admonitions.
+  - name: developer
+    title: Developer
+    description: Doxide's own source code documentation.
+

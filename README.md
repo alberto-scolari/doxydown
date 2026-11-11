@@ -1,6 +1,4 @@
-<p align="center">
-<img src="docs/assets/title.svg" width="256" height="384" alt="Doxydown: Modern documentation tool for C++">
-</p>
+# Doxydown
 
 Doxydown is a documentation generator for C++.
 It is inspired to [doxygen](https://www.doxygen.nl) and is a fork of [Doxide](https://github.com/lawmurray/doxide).

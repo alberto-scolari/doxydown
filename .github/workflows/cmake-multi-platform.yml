@@ -68,10 +68,8 @@ jobs:
       run: conan install . --build=missing -pr=default -pr=debug
 
     - name: Configure CMake
-      run: >
-        cmake -B ${{ steps.strings.outputs.build_out_dir }}
-        --preset conan-debug
-        -S ${{ github.workspace }}
+      run:
+        cmake --preset conan-debug -S ${{ github.workspace }}
 
     - name: Build
       run: cmake --build --preset conan-debug

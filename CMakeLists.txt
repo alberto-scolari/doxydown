@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
-project(doxide
+project(doxidown
   VERSION 0.10.0
-  DESCRIPTION "Modern documentation for modern C++"
-  HOMEPAGE_URL "https://doxide.org"
+  DESCRIPTION "Modern documentation tool for C++"
 )
 cmake_policy(SET CMP0074 NEW) # use <PackageName>_ROOT to look for packages
 
@@ -124,8 +123,8 @@ configure_file(
   ${CMAKE_BINARY_DIR}/src/generated/config.h
 )
 
-add_executable(doxide
-  src/doxide.cpp
+add_executable(doxydown
+  src/doxydown.cpp
   src/CppParser.cpp
   src/Driver.cpp
   src/DriverConfigParser.cpp
@@ -150,20 +149,20 @@ add_executable(doxide
 )
 if(WIN32)
   # add icon
-  target_sources(doxide PRIVATE win/icon.rc)
+  target_sources(doxydown PRIVATE win/icon.rc)
 endif()
-target_include_directories(doxide PRIVATE src ${CMAKE_BINARY_DIR}/src)
+target_include_directories(doxydown PRIVATE src ${CMAKE_BINARY_DIR}/src)
 
-target_link_libraries(doxide yaml::yaml tree-sitter-cuda::tree-sitter-cuda
+target_link_libraries(doxydown yaml::yaml tree-sitter-cuda::tree-sitter-cuda
   CLI11::CLI11 p-ranav-glob::p-ranav-glob
 )
 
 include(GNUInstallDirs)
-install(TARGETS doxide RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS doxydown RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/win ${CMAKE_MODULE_PATH})
 string(REPLACE "/" "\\\\" NATIVE_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
-set(CPACK_PACKAGE_NAME "Doxide")
+set(CPACK_PACKAGE_NAME "doxydown")
 set(CPACK_PACKAGE_ICON "${NATIVE_SOURCE_DIR}\\\\win\\\\icon.ico")
 set(CPACK_PACKAGE_VENDOR "Lawrence Murray")
 set(CPACK_PACKAGE_DESCRIPTION "Modern documentation for modern C++")

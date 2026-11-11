@@ -1,7 +1,7 @@
-site_name: Doxide
+site_name: Doxydown
 site_description: Documentation and code coverage for modern C++. Configure with YAML, generate Markdown, publish with Material for MkDocs.
-repo_url: https://github.com/lawmurray/doxide
-repo_name: lawmurray/doxide
+repo_url: https://github.com/alberto-scolari/doxydown
+repo_name: alberto-scolari/doxydown
 theme:
   name: material
   custom_dir: docs/overrides
@@ -42,12 +42,12 @@ markdown_extensions:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.tabbed:
-      alternate_style: true 
+      alternate_style: true
 plugins:
   - search
   - social
 extra_css:
-  - stylesheets/doxide.css
+  - stylesheets/doxydown.css
 extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js

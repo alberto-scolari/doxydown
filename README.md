@@ -1,24 +1,36 @@
 <p align="center">
-<img src="docs/assets/title.svg" width="256" height="384" alt="Doxide: Modern documentation for modern C++">
+<img src="docs/assets/title.svg" width="256" height="384" alt="Doxydown: Modern documentation tool for C++">
 </p>
 
-Doxide is a documentation generator for C++.
+Doxydown is a documentation generator for C++.
+It is inspired to [doxygen](https://www.doxygen.nl) and is a fork of [Doxide](https://github.com/lawmurray/doxide).
+Its main features are:
 
-* It is configured with YAML, generates Markdown, and publishes HTML with a modern look and responsive design for desktop and mobile devices.
-* It is open source under an Apache 2.0 license, and runs on Linux, Mac, and Windows.
-* It is written in C++ so that its primary users, C++ developers, can readily contribute.
-* C++ source code is documented with `/** comments */` containing `@commands`, as with the classic tool [Doxygen](https://doxygen.nl/). Many commands from Doxygen are already supported.
-* C++ source code is parsed with [Tree-sitter](https://tree-sitter.github.io), the same parser used by many syntax highlighters.
+- you write documentation in pure, familiar **Markdown**: no more HTML tags for links, italics and so on;
+- you can use familiar documentation **extensions inspired to doxygen**;
+- it emits Markdown for several common tools (plain Markdown, MkDocs or PanDoc), which you can then use fo customization, post-processing and integration with other documentation.
+- it is configured in familiar YAML
+- it is open source under an Apache 2.0 license, and runs on Linux, Mac, and Windows.
 
+## Why an alternative to doxygen
 
-By generating Markdown, Doxide opens C++ documentation to the whole wide world of static site generation tools and themes. There is particular support for [MkDocs](https://www.mkdocs.org/) and the [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) theme, as on the Doxide website. A little extra effort enables alternatives such as [Jekyll](https://jekyllrb.com/) and [Hugo](https://gohugo.io/). Other formats such as PDF are possible too, via [Pandoc](https://pandoc.org/).
+Doxygen is a tool that [dates back to 1997](https://en.wikipedia.org/wiki/Doxygen), when a lot of formats and tools that are now available did not exist.
+Therefore, it adopted a format based on a mix of custom extensions and HTML (and some Latex, e.g., for mathematics), the main markup technology of those times.
+In addition, it provides a full HTML generation, which enforces a certain look and features set (only recently updated) and has limited customization (one has to temper with CSS to change the look).
 
-Instructions for installing from source are provided here. See the [website](https://doxide.org/installation) for packages for Linux, Mac, and Windows that are easier to install.
+Modern tools allow lifting both limitations.
+Markdown is a well-known, easy and extensible markup language that most users are familiar with, more than HTML, and can indeed replace it for the most common formatting options.
+There is a multitude of tools ([MkDocs](https://www.mkdocs.org/) and [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/), PanDoc, MyST, ...) that extend it to provide additional features and that post-process it with much higher degrees of customizability, finally integrating it into your organization's documentation in a coherent way, as if all of the parts of your documentation had been generated in a single process.
+The days when going from the tutorial to the API documentation seemed like a jump back to the 90's are finally over.
 
+## Why an alternative to Doxide
+
+Doxydown inherits a lot of design decisions from [Doxide](https://github.com/lawmurray/doxide), but focuses on modularity, extensibility and adherence to modern C++ practices like avoiding pointers and using robust C++ facilities like `unique_ptr`, `span`, `option` and so on.
+This should make it easy to develop and extend Doxydown.
 
 ## License
 
-Doxide is open source software. It is licensed under the Apache License,
+Doxydown is open source software. It is licensed under the Apache License,
 Version 2.0 (the "License"); you may not use it except in compliance with the
 License. You may obtain a copy of the License at
 <http://www.apache.org/licenses/LICENSE-2.0>.
@@ -26,59 +38,47 @@ License. You may obtain a copy of the License at
 
 ## Requirements
 
-* A C++ toolchain for building.
-* [CMake](https://cmake.org) for building.
-* [LibYAML](https://pyyaml.org/wiki/LibYAML).
-* Possibly [ICU](https://icu.unicode.org/), depending on your platform.
+The basic tools for building are
 
-On Debian-based Linux systems, install these with:
-```
-sudo apt install cmake libyaml-dev libicu-dev
-```
-On RPM-based Linux systems, install these with (replace `dnf` for Fedora with `zypper` for openSUSE, or otherwise for your distribution):
-```
-dnf install cmake libyaml-devel libicu-devel
-```
-On Mac systems using Homebrew, use:
-```
-brew install cmake libyaml
-```
-On Windows, build and install LibYAML separately from the `contrib/libyaml` directory.
-
-There are further dependencies that do not need to be installed separately. They are included as submodules in the `contrib/` subdirectory either because they are not universally available in package managers or specific versions are required. The Doxide build handles these for you, but for reference:
-
-* [CLI11](https://cliutils.github.io/CLI11/book/)
-* [Tree-sitter](https://tree-sitter.github.io/tree-sitter/)
-* [Tree-sitter C++ language support](https://github.com/tree-sitter/tree-sitter-cpp)
-* [Tree-sitter CUDA C++ language support](https://github.com/tree-sitter-grammars/tree-sitter-cuda)
-* [glob](https://github.com/p-ranav/glob)
+* A C++20 toolchain: full C++20 support is required (e.g., some compiler versions like GCC 12 have too limited support for `<format`, so GCC 13.2+ is required>).
+* [CMake](https://cmake.org).
 
 
-## Installation
+Since we use [Conan](https://conan.io) to install dependencies, the dependencies and their versions are listed and kept up-to-date in the file [`conanfile.txt`](conanfile.txt) under the `[requires]` section.
+They are:
 
-To install from source, clone the Doxide repo with:
-```
-git clone https://github.com/lawmurray/doxide
-git submodule update --init --depth 1
-```
-The second line is necessary to bring in some dependencies that are not universally available in package managers. It can be skipped if you acquire these by another means.
+- [LibYAML](https://pyyaml.org/wiki/LibYAML)
+- [CLI11](https://cliutils.github.io/CLI11/book/)
+- [glob](https://github.com/p-ranav/glob)
+- [Tree-sitter CUDA C++ language support](https://github.com/tree-sitter-grammars/tree-sitter-cuda)
 
-Build and install with:
-```
-cd doxide
-cmake .
-cmake --build .
-cmake --install .
-```
-The last command may need `sudo`. Alternatively, provide a prefix to install
-somewhere local:
-```
-cmake --install . --prefix $HOME/.local
+[Tree-sitter](https://tree-sitter.github.io) is the parser for the C++ source code is parsed with, the same used by many syntax highlighters.
+
+Alternatively, you can install them via your package manager.
+Please, be aware that some dependencies are likely available via your package manager, while others are harder to find and may require manual compilation; to avoid this, we suggest [Conan](https://conan.io) (which you can install via `pip install conan`).
+If you decide to compile them yourself, you may pass them to CMake via the usual [`<PackageName>_ROOT`](https://cmake.org/cmake/help/latest/variable/PackageName_ROOT.html) variabe on CMake command-line.
+
+## Building and serving the documentation
+
+If you go for Conan and it is already configured (i.e., it has a default profile), from the repo root you can simply run
+```shell
+# build and install dependencies into the build directory
+conan install --build=missing
+# configure the project using the 'conan-debug' profile, i.e., the default profile Conan generates
+cmake --preset conan-debug -S .
+# build Doxydown using all available cores according to the default Conan profile
+cmake --build --preset conan-debug -j$(nproc)
 ```
 
-[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) is
-recommended for publishing your documentation. It is distributed as a Python
-package. Install it with:
+Dowydown is finally compiled in `build/Debug` and you can invoke it as
+
+```shell
+build/Debug/doxydown --help
+```
+
+[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) is recommended for publishing your documentation.
+It is distributed as a Python package that you can install with
+
 ``` 
 pip install mkdocs-material
 ```
@@ -87,32 +87,33 @@ pip install mkdocs-material
 ## Quick start
 
 Run, from within your source code directory:
+
+```shell
+doxydown init
 ```
-doxide init
-```
-This will create a `doxide.yaml` configuration file, as well as some
-additional files for publishing with Material for MkDocs. To start, it is not
-necessary to modify any of these.
+
+This will create a `doxydown.yaml` configuration file, as well as some additional files for publishing with Material for MkDocs.
+To start, it is not necessary to modify any of these.
 
 Build the Markdown:
-```
-doxide build
+
+```shell
+doxydown build
 ```
 This will populate the output directory (default: `docs`).
 
-Build the HTML:
-```
+Build the static HTML:
+
+```shell
 mkdocs build
 ```
+
 This will populate the `site` directory.
 
 Serve the HTML:
-```
+
+```shell
 mkdocs serve
 ```
+
 and point your browser to `localhost:8000`.
-
-
-## Further information
-
-For further information, see [doxide.org](https://doxide.org).

@@ -21,10 +21,10 @@ enum class CliCommand {
   COVER
 };
 
-static constexpr std::initializer_list<std::string_view> DOXIDE_CONF_FILES{
-  "doxide.yaml",
-  "doxide.yml",
-  "doxide.json"
+static constexpr std::initializer_list<std::string_view> DOXIDOWN_CONF_FILES{
+  "doxydown.yaml",
+  "doxydown.yml",
+  "doxydown.json"
 };
 
 int main(int argc, char** argv) {
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
       "Code coverage file (.gcov or .json).");
   app.add_option("--style", info.style,
       "Specify the style of documentation: plain or mkdocs.");
-  app.set_version_flag("--version,-v", PACKAGE_VERSION, "Doxide version.");
+  app.set_version_flag("--version,-v", PACKAGE_VERSION, "Doxydown version.");
   app.fallthrough(true);
   app.add_subcommand("init",
       "Initialize configuration files.")->
@@ -66,10 +66,10 @@ int main(int argc, char** argv) {
   app.require_subcommand(1);
   CLI11_PARSE(app, argc, argv);
 
-  auto iter = std::ranges::find_if(DOXIDE_CONF_FILES, [](const std::string_view& f) {
+  auto iter = std::ranges::find_if(DOXIDOWN_CONF_FILES, [](const std::string_view& f) {
     return std::filesystem::exists(f);
   });
-  std::optional<std::string_view> config_opt = iter != DOXIDE_CONF_FILES.end() ?
+  std::optional<std::string_view> config_opt = iter != DOXIDOWN_CONF_FILES.end() ?
     std::optional<std::string_view>{*iter} : std::optional<std::string_view>{};
 
   std::optional<DriverConfigParser> config_parser;

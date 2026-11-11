@@ -16,7 +16,7 @@ void FileSystemDeleter::delete_all_files() {
           YAMLParser parser;
           YAMLNode frontmatter = parser.parse(entry.path().string());
           if (frontmatter.isValue("generator") &&
-              frontmatter.value("generator") == "doxide") {
+              frontmatter.value("generator") == "doxydown") {
             std::filesystem::remove(entry.path());
           }
         } catch (const std::runtime_error& e) {

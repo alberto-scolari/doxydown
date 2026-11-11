@@ -31,11 +31,11 @@
 #include <tuple>
 
 /**
- * Contents of initial `doxide.yaml` file.
+ * Contents of initial `doxydown.yaml` file.
  *
  * @ingroup developer
  */
-static constexpr std::string_view init_doxide_yaml =
+static constexpr std::string_view init_doxydown_yaml =
 R""""(title: {}
 description: {}
 style: {}
@@ -90,7 +90,7 @@ markdown_extensions:
 plugins:
   - search
 extra_css:
-  - stylesheets/doxide.css
+  - stylesheets/doxydown.css
 extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/npm/echarts@6.1.0/dist/echarts.min.js
@@ -99,11 +99,11 @@ extra_javascript:
 )"""";
 
 /**
- * Contents of initial `docs/stylesheets/doxide.css` file.
+ * Contents of initial `docs/stylesheets/doxydown.css` file.
  *
  * @ingroup developer
  */
-static const char* init_docs_stylesheets_doxide_css =
+static const char* init_docs_stylesheets_doxydown_css =
 R""""(:root {
   --md-admonition-icon--variable: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.41 3c1.39 2.71 1.94 5.84 1.59 9-.2 3.16-1.3 6.29-3.17 9l-1.53-1c1.61-2.43 2.55-5.2 2.7-8 .34-2.8-.11-5.57-1.3-8l1.71-1M5.17 3 6.7 4C5.09 6.43 4.15 9.2 4 12c-.34 2.8.12 5.57 1.3 8l-1.69 1c-1.4-2.71-1.96-5.83-1.61-9 .2-3.16 1.3-6.29 3.17-9m6.91 7.68 2.32-3.23h2.53l-3.78 5 2.2 4.92h-2.26L11.71 14l-2.43 3.33H6.76l3.9-5.12-2.13-4.76h2.27l1.28 3.23Z"/></svg>');
   --md-admonition-icon--function: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M15.6 5.29c-1.1-.1-2.07.71-2.17 1.82L13.18 10H16v2h-3l-.44 5.07a3.986 3.986 0 0 1-4.33 3.63 4.007 4.007 0 0 1-3.06-1.87l1.5-1.5c.24.74.9 1.31 1.73 1.38 1.1.1 2.07-.71 2.17-1.82L11 12H8v-2h3.17l.27-3.07c.19-2.2 2.13-3.83 4.33-3.63 1.31.11 2.41.84 3.06 1.87l-1.5 1.5c-.24-.74-.9-1.31-1.73-1.38Z"/></svg>');
@@ -178,8 +178,8 @@ R""""(<div class="md-copyright">
   {% endif %}
   {% if not config.extra.generator == false %}
     Made with
-    <a href="https://doxide.org" target="_blank" rel="noopener">
-      Doxide
+    <a href="https://github.com/alberto-scolari/doxydown" target="_blank" rel="noopener">
+      Doxydown
     </a>
     and
     <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
@@ -206,12 +206,12 @@ Driver::Driver(const DriverInitInfo& init_info, const std::optional<DriverConfig
 }
 
 void Driver::init() {
-  std::string doxide_yaml = std::format(init_doxide_yaml, title, description, style_option_to_str(style));
-  write_file_prompt(doxide_yaml, "doxide.yaml");
+  std::string doxydown_yaml = std::format(init_doxydown_yaml, title, description, style_option_to_str(style));
+  write_file_prompt(doxydown_yaml, "doxydown.yaml");
   if (style == StyleOption::MKDOCS) {
     std::string mkdocs_yaml = std::format(init_mkdocs_yaml, title, description);
     write_file_prompt(mkdocs_yaml, "mkdocs.yaml");
-    write_file_prompt(init_docs_stylesheets_doxide_css, "docs/stylesheets/doxide.css");
+    write_file_prompt(init_docs_stylesheets_doxydown_css, "docs/stylesheets/doxydown.css");
     write_file_prompt(init_docs_overrides_partials_copyright_html, "docs/overrides/partials/copyright.html");
   }
 }
@@ -303,7 +303,7 @@ void Driver::cover() {
 
 void Driver::clean() {
   /* can use MarkdownGenerator::clean() for this just by not calling
-   * generate() first; this will remove all files with `generator: doxide` in
+   * generate() first; this will remove all files with `generator: doxydown` in
    * their YAML frontmatter */
   run_generation();
 }

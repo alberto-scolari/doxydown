@@ -65,11 +65,12 @@ jobs:
         config_urls: ${{ github.workspace }}/tools/conan
 
     - name: Install Conan dependencies
-      run: conan install . --build=missing -pr=default -pr=debug
+    # in Windows, force C++17, in the other OSs leave the default
+      run: conan install . --build=missing -pr=default -pr=debug ${{ runner.os == 'Windows' && '-s compiler.cppstd=17' || '' }}
 
     - name: Configure CMake
       run:
-        cmake --preset conan-debug -S ${{ github.workspace }}
+        cmake -S ${{ github.workspace }} --preset ${{ runner.os == 'Windows' && 'conan-default' || 'conan-debug' }}
 
     - name: Build
       run: cmake --build --preset conan-debug

@@ -10,7 +10,7 @@ namespace file_utils {
 
   constexpr static path_str_view get_filename(const path_str_view& path) {
       path_str_view vpath = path;
-      size_t last_slash = vpath.find_last_of("/\\");
+      std::size_t last_slash = vpath.find_last_of("/\\");
       if (last_slash == path_str_view::npos) {
           return vpath; // No slash found, the entire path is the filename
       }
@@ -29,7 +29,7 @@ namespace file_utils {
   }
 
   constexpr static path_str_view parent_path(const path_str_view& path) {
-    size_t last_slash = path.find_last_of("/\\");
+    std::size_t last_slash = path.find_last_of("/\\");
     if (last_slash == path_str_view::npos) {
         return ""; // No slash found, the entire path is the filename
     }

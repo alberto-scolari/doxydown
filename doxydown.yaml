@@ -1,16 +1,16 @@
 title: Demo
 description: |
-    These pages demonstrate some of the features of Doxide, and also serve as
+    These pages demonstrate some of the features of Doxydown, and also serve as
     a test corpus. They are generated from the source files in the
-    [demo](https://github.com/lawmurray/doxide/tree/main/demo) directory of
-    the repository, as well as from the source code of Doxide itself. This
+    [demo](https://github.com/alberto-scolari/doxydown/tree/main/demo) directory of
+    the repository, as well as from the source code of Doxydown itself. This
     first page demonstrates how [groups](../organizing) can be used to
     organize documentation.
 files:
   - "src/**.hpp"
   - "src/**.cpp"
   - "demo/*.hpp"
-output: docs
+output: docs/generated
 groups:
   - name: parsing
     title: Parsing
@@ -20,5 +20,4 @@ groups:
     description: Demonstration and test of Markdown elements, such as code, syntax highlighting, tables, images, and admonitions.
   - name: developer
     title: Developer
-    description: Doxide's own source code documentation.
-
+    description: Doxydown's own source code documentation.

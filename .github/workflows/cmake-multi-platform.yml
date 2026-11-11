@@ -1,0 +1,65 @@
+
+name: main - build with Conan+CMake on multiple platforms
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    strategy:
+      # TODO: once stabilized, set fail-fast to true to ensure;
+      # otherwise, feedback is delivered for all matrix combinations regardless
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-15]
+        build_type: [Debug]
+        include:
+          - os: windows-2022
+            c_compiler: cl
+            cpp_compiler: cl
+          - os: ubuntu-24.04
+            c_compiler: gcc
+            cpp_compiler: g++
+          - os: macos-15
+            c_compiler: clang
+            cpp_compiler: clang++
+
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set Job parameters
+      id: strings
+      shell: bash
+      run: |
+        echo "build_out_dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+    - name: Set Compiler Env
+      run: |
+        echo "CC=${{ matrix.c_compiler }}" >> $GITHUB_ENV
+        echo "CXX=${{ matrix.cpp_compiler }}" >> $GITHUB_ENV
+
+    - name: Install Conan
+      uses: conan-io/setup-conan@v1.5.1
+      with:
+        config_urls: ${{ github.workspace }}/tools/conan
+        cache_packages: true
+        cache_key: ${{ matrix.os }}-${{ matrix.build_type }}-${{ matrix.c_compiler }}-${{ matrix.cpp_compiler }}
+
+    - name: Install Conan dependencies
+      # in Windows, force C++17; in the other OSs, leave the default
+      run: conan install . --build=missing -pr=default -pr=debug ${{ runner.os == 'Windows' && '-s compiler.cppstd=17' || '' }}
+
+    - name: Configure CMake
+      # Visual Studio is a multi-config generator, so the preset is called 'conan-default' and can compile
+      # both 'conan-debug' and 'conan-release' (but only 'conan-debug' is activated)
+      run:
+        cmake -S ${{ github.workspace }} --preset ${{ runner.os == 'Windows' && 'conan-default' || 'conan-debug' }}
+    - name: Build
+      run: cmake --build --preset conan-debug
+    - name: Test
+      working-directory: ${{ steps.strings.outputs.build_out_dir }}
+      run: Debug/doxydown --version

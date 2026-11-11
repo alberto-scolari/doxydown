@@ -1,10 +1,16 @@
 #pragma once
 
-#include "Entity.hpp"
+#include "DriverConfigParser.hpp"
+#include "FileSystemDeleter.hpp"
+#include "FileSystemStatsInfo.hpp"
+#include "StyleOption.hpp"
+#include "entities/EntityRegistry.hpp"
 
 #include <filesystem>
-#include <list>
+#include <optional>
 #include <string>
+#include <string_view>
+#include <vector>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -20,12 +26,13 @@ public:
   /**
    * Constructor.
    */
-  Driver();
+  Driver() = delete;
 
-  /**
-   * Read in the configuration file.
-   */
-  void config();
+  Driver(const Driver&) = delete;
+
+  Driver& operator=(const Driver&) = delete;
+
+  Driver(const DriverInitInfo&, const std::optional<DriverConfigParser>&);
 
   /**
    * Create a new configuration file.
@@ -55,7 +62,7 @@ public:
   /**
    * Markdown style.
    */
-  std::string style;
+  StyleOption style;
 
   /**
    * Title.
@@ -76,7 +83,6 @@ public:
    * Output directory.
    */
   std::filesystem::path output;
-
 private:
   /**
    * Parse files.
@@ -88,25 +94,31 @@ private:
    */
   void count();
 
-  /**
-   * Recursively read groups from the configuration file.
-   */
-  static void groups(YAMLNode& parentNode, Entity& parentEntity);
+  void aggregate_stats();
+
+  bool has_coverage() const noexcept;
+
+  std::optional<std::filesystem::path> get_coverage_path() const;
+
+  std::optional<std::string_view> get_coverage_suffix() const;
+
+  void run_generation();
+
+  void remove_file(const std::filesystem::path filename);
 
   /**
-   * Root entity.
+   * Read groups from the configuration file.
    */
-  Entity root;
+  void groups(const YAMLNode& parentNode);
+
+  FileSystemDeleter fscleaner;
+
+  EntityRegistry registry;
 
   /**
    * Configuration file path.
    */
-  std::filesystem::path config_file;
-
-  /**
-   * Files patterns.
-   */
-  std::list<std::string> files_patterns;
+  std::optional<std::string> config_file;
 
   /**
    * Macro definitions.
@@ -117,4 +129,11 @@ private:
    * Files.
    */
   std::unordered_set<std::filesystem::path> filenames;
+
+  /**
+   * Files patterns.
+   */
+  std::vector<std::string> files_patterns;
+
+  FileSystemStatsInfo fsinfo;
 };

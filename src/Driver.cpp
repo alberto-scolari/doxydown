@@ -1,31 +1,44 @@
 #include "Driver.hpp"
 
 #include "CppParser.hpp"
+#include "FileSystemStatsInfo.hpp"
 #include "GcovCounter.hpp"
 #include "JSONCounter.hpp"
 #include "JSONGenerator.hpp"
-#include "YAMLParser.hpp"
+#include "YAMLNode.hpp"
 #include "Log.hpp"
-#include "MarkdownGenerator.hpp"
 #include "SourceWatcher.hpp"
-#include "doxide.hpp"
+#include "StyleOption.hpp"
+#include "Utils.hpp"
+#include "entities/FileEntity.hpp"
+#include "entities/GroupEntity.hpp"
+#include "entities/FwdRef.hpp"
+#include "entities/LineStats.hpp"
+#include "generation/MarkdownGenerator.hpp"
+#include "generation/MdCoverageGenerator.hpp"
 
-#include <glob/glob.hpp>
-#include <regex>
+#include <algorithm>
+#include <cctype>
+#include <chrono>
+#include <format>
+#include <functional>
+#include <iostream>
+#include <optional>
+#include <stack>
+#include <string_view>
+#include <stdexcept>
 #include <thread>
 #include <tuple>
-#include <utility>
-#include <vector>
 
 /**
  * Contents of initial `doxide.yaml` file.
  *
  * @ingroup developer
  */
-static const char* init_doxide_yaml =
-R""""(title:
-description:
-style:
+static constexpr std::string_view init_doxide_yaml =
+R""""(title: {}
+description: {}
+style: {}
 files:
   - "*.hpp"
   - "**/*.hpp"
@@ -38,9 +51,9 @@ files:
  *
  * @ingroup developer
  */
-static const char* init_mkdocs_yaml =
-R""""(site_name:
-site_description:
+static constexpr std::string_view init_mkdocs_yaml =
+R""""(site_name: {}
+site_description: {}
 theme:
   name: material
   custom_dir: docs/overrides
@@ -176,31 +189,27 @@ R""""(<div class="md-copyright">
 </div>
 )"""";
 
-Driver::Driver() :
-    style("mkdocs"),
-    title("Untitled"),
-    output("docs") {
-  //
+Driver::Driver(const DriverInitInfo& init_info, const std::optional<DriverConfigParser>& config_parser) :
+  style(str_to_style_option(init_info.style)),
+  title(init_info.title),
+  description(init_info.description),
+  coverage(init_info.coverage),
+  output(init_info.output),
+  fscleaner(output),
+  registry(title, description) {
+  if (config_parser) {
+    config_file = config_parser->get_config_file();
+    defines = config_parser->get_defines();
+    std::tie(filenames, files_patterns) = config_parser->get_filenames_and_patterns();
+    groups(config_parser->get_root());
+  }
 }
 
 void Driver::init() {
-  std::string doxide_yaml = init_doxide_yaml;
-  std::string mkdocs_yaml = init_mkdocs_yaml;
-
-  doxide_yaml = std::regex_replace(doxide_yaml, std::regex("title:"),
-      "title: " + title);
-  doxide_yaml = std::regex_replace(doxide_yaml, std::regex("description:"),
-      "description: " + description);
-  doxide_yaml = std::regex_replace(doxide_yaml, std::regex("style:"),
-      "style: " + style);
-
-  mkdocs_yaml = std::regex_replace(mkdocs_yaml, std::regex("site_name:"),
-      "site_name: " + title);
-  mkdocs_yaml = std::regex_replace(mkdocs_yaml, std::regex("site_description:"),
-      "site_description: " + description);
-
+  std::string doxide_yaml = std::format(init_doxide_yaml, title, description, style_option_to_str(style));
   write_file_prompt(doxide_yaml, "doxide.yaml");
-  if (style == "mkdocs") {
+  if (style == StyleOption::MKDOCS) {
+    std::string mkdocs_yaml = std::format(init_mkdocs_yaml, title, description);
     write_file_prompt(mkdocs_yaml, "mkdocs.yaml");
     write_file_prompt(init_docs_stylesheets_doxide_css, "docs/stylesheets/doxide.css");
     write_file_prompt(init_docs_overrides_partials_copyright_html, "docs/overrides/partials/copyright.html");
@@ -210,10 +219,7 @@ void Driver::init() {
 void Driver::build() {
   parse();
   count();
-
-  MarkdownGenerator generator(output, style);
-  generator.generate(root, !coverage.empty());
-  generator.clean();
+  run_generation();
 }
 
 void Driver::watch() {
@@ -221,22 +227,25 @@ void Driver::watch() {
 
   std::cout << "Start watching" << std::endl;
 
-  SourceWatcher config_watcher = SourceWatcher(config_file.string());
+  std::optional<SourceWatcher> config_watcher = config_file ?
+    std::optional<SourceWatcher>{SourceWatcher(*config_file)} : std::optional<SourceWatcher>{};
   SourceWatcher watcher = SourceWatcher(files_patterns);
 
-  CppParser parser;
+  CppParser parser(registry, style);
 
   for (;;){
     std::this_thread::sleep_for(std::chrono::milliseconds(2000));
 
-    if (config_watcher.changed()){
+    if (config_watcher and config_watcher->changed()) {
       std::cout << std::endl << "Detected configuration file change." << std::endl;
       std::cout << "Rebuilding documentation..." << std::endl;
 
-      root.clear();
+      fscleaner.clear();
+      fsinfo.clear();
+      registry.clear();
       build();
 
-      config_watcher = SourceWatcher(config_file.string());
+      config_watcher = SourceWatcher(*config_file);
       watcher = SourceWatcher(files_patterns);
 
       std::cout << "Done" << std::endl;
@@ -262,24 +271,22 @@ void Driver::watch() {
       filenames = watcher.filenames();
 
       for (const auto& filename: deleted_files) {
-        root.delete_by_predicate([filename](const Entity& e) {return e.path == filename; });
+        remove_file(filename);
       }
       for (const auto& filename: changed_files) {
-        root.delete_by_predicate([filename](const Entity& e) {return e.path == filename; });
+        remove_file(filename);
       }
 
       for (const auto& filename: changed_files) {
-        parser.parse(filename, style, defines, root);
+        parser.parse(filename, defines, has_coverage());
       }
       for (const auto& filename: added_files) {
-        parser.parse(filename, style, defines, root);
+        parser.parse(filename, defines, has_coverage());
       }
 
       count();
 
-      MarkdownGenerator generator(output, style);
-      generator.generate(root, !coverage.empty());
-      generator.clean();
+      run_generation();
 
       std::cout << "Done" << std::endl;
     }
@@ -291,122 +298,28 @@ void Driver::cover() {
   count();
 
   JSONGenerator generator;
-  generator.generate(root);
+  generator.generate(fsinfo);
 }
 
 void Driver::clean() {
-
   /* can use MarkdownGenerator::clean() for this just by not calling
    * generate() first; this will remove all files with `generator: doxide` in
    * their YAML frontmatter */
-  MarkdownGenerator generator(output, style);
-  generator.clean();
-}
-
-void Driver::config() {
-  /* find the configuration file */
-  if (std::filesystem::exists("doxide.yaml")) {
-    config_file = "doxide.yaml";
-  } else if (std::filesystem::exists("doxide.yml")) {
-    config_file = "doxide.yml";
-  } else if (std::filesystem::exists("doxide.json")) {
-    config_file = "doxide.json";
-  } else {
-    /* not required to use a config file */
-    return;
-  }
-
-  /* parse build configuration file */
-  YAMLParser parser;
-  YAMLNode yaml = parser.parse(config_file);
-
-  if (yaml.has("style")) {
-    if (yaml.isValue("style")) {
-      style = yaml.value("style");
-    } else {
-      warn("'style' must be a value in configuration.");
-    }
-  }
-  if (yaml.has("title")) {
-    if (yaml.isValue("title")) {
-      title = yaml.value("title");
-    } else {
-      warn("'title' must be a value in configuration.");
-    }
-  }
-  if (yaml.has("description")) {
-    if (yaml.isValue("description")) {
-      description = yaml.value("description");
-    } else {
-      warn("'description' must be a value in configuration.");
-    }
-  }
-  if (yaml.has("coverage")) {
-    if (yaml.isValue("coverage")) {
-      coverage = yaml.value("coverage");
-    } else {
-      warn("'coverage' must be a value in configuration.");
-    }
-  }
-  if (yaml.has("output")) {
-    if (yaml.isValue("output")) {
-      output = yaml.value("output");
-    } else {
-      warn("'output' must be a value in configuration.");
-    }
-  }
-  if (yaml.has("defines")) {
-    if (yaml.isMapping("defines")) {
-      const auto& map = yaml.mapping("defines");
-      for (auto& [key, value] : map) {
-        if (value->isValue()) {
-          defines[key] = value->value();
-        }
-      }
-    } else {
-      warn("'defines' must be a mapping in configuration.");
-    }
-  }
-
-  /* expand file patterns in file list */
-  filenames.clear();
-  if (yaml.isSequence("files")) {
-    for (auto& node : yaml.sequence("files")) {
-      if (node->isValue()) {
-        auto& pattern = node->value();
-        files_patterns.push_back(pattern);
-        auto paths = glob::rglob(pattern);
-        if (paths.empty()) {
-          /* print warning if pattern does not contain a wildcard '*' */
-          if (pattern.find('*') == std::string::npos) {
-            warn("no file matching '" + pattern + "' in configuration.");
-          }
-        } else for (auto path : paths) {
-          auto result = filenames.insert(path.string());
-          if (!result.second) {
-            warn("file " << path << " appears more than once in configuration.");
-          }
-        }
-      }
-    }
-  }
-
-  /* validation */
-  if (style != "mkdocs" && style != "pandoc" && style != "plain") {
-    warn("'style' must be either 'mkdocs', 'pandoc', or 'plain'. Using 'mkdocs'.");
-    style = "mkdocs";
-  }
-
-  /* initialize root entity */
-  groups(yaml, root);
-  root.title = title;
-  root.docs = description;
+  run_generation();
 }
 
 void Driver::parse() {
-  CppParser parser;
+  CppParser parser(registry, style);
   for (const auto& filename: filenames) {
-    parser.parse(filename, style, defines, root);
+    auto fp = filename.lexically_normal();
+    if (fsinfo.contains(fp)) {
+      throw std::runtime_error(std::format("file \"{}\" is already parsed", fp.native()));
+    }
+    std::optional<FwdRef<FileEntity>> file = parser.parse(fp, defines, has_coverage());
+    if (not file) {
+      continue;
+    }
+    fsinfo.add_file(fp, *file);
   }
 }
 
@@ -416,39 +329,105 @@ void Driver::count() {
       auto ext = coverage.extension();
       if (ext == ".gcov") {
         GcovCounter counter;
-        counter.count(coverage, root);
+        counter.count(coverage, fsinfo);
       } else if (ext == ".json") {
         JSONCounter counter;
-        counter.count(coverage, root);
+        counter.count(coverage, fsinfo);
       } else {
         throw std::runtime_error("unrecognized file extension on " +
             coverage.string());
       }
+      aggregate_stats();
     } catch (const std::runtime_error& e) {
       warn(e.what() << ", coverage will be reported as zero");
     }
   }
 }
 
-void Driver::groups(YAMLNode& parentNode, Entity& parentEntity) {
-  if (parentNode.isSequence("groups")) {
-    for (auto& node : parentNode.sequence("groups")) {
-      Entity entity;
-      entity.type = EntityType::GROUP;
-      entity.visible = true;
-      if (node->isValue("name")) {
-        entity.name = node->value("name");
-        if (node->isValue("title")) {
-          entity.title = node->value("title");
-        }
-        if (node->isValue("description")) {
-          entity.docs = node->value("description");
-        }
-      } else {
-        warn("a group is missing a name in the configuration file.")
-      }
-      groups(*node, entity);
-      parentEntity.add(std::move(entity));
+void Driver::aggregate_stats() {
+  DirStackController controller{fsinfo};
+  for (auto& [path, dirinfo]:
+    dag_dfs_traverse<DfsTraversalType::POST>(controller)) {
+    for(const FwdRef<FileEntity> fe: dirinfo.files) {
+      dirinfo.stats += *fe;
+    }
+    for(const auto& sd: dirinfo.subdirs) {
+      dirinfo.stats += fsinfo.lookup_dir(sd)->get().stats;
+    }
+  }
+#ifdef DXM_DEBUG
+  fsinfo.explore();
+#endif //DXM_DEBUG
+}
+
+bool Driver::has_coverage() const noexcept {
+  return not coverage.empty();
+}
+
+std::optional<std::filesystem::path> Driver::get_coverage_path() const {
+  if (has_coverage()) {
+    return output / "coverage";
+  }
+  return {};
+}
+
+std::optional<std::string_view> Driver::get_coverage_suffix() const {
+  if (has_coverage()) {
+    return "coverage";
+  }
+  return {};
+}
+
+void Driver::run_generation() {
+  auto coverage_suffix = get_coverage_suffix();
+  MarkdownGenerator generator(output, fscleaner, style);
+  generator.generate(registry, coverage_suffix);
+  if (auto coverage_path = get_coverage_path(); coverage_path) {
+    MdCoverageGenerator cov_gen(*coverage_path, fscleaner);
+    cov_gen.generate(fsinfo);
+  }
+  fscleaner.delete_all_files();
+}
+
+void Driver::remove_file(const std::filesystem::path filename) {
+  fsinfo.remove_file(filename);
+  registry.remove_file(filename);
+}
+
+void Driver::groups(const YAMLNode& groups_root) {
+  if (not groups_root.isSequence("groups")) {
+    return;
+  }
+  using parent_t = std::optional<FwdRef<GroupEntity>>;
+  std::stack<std::tuple<const YAMLNode::sequence_type&, YAMLNode::sequence_type::const_iterator, parent_t>> stack;
+  const auto& seq = groups_root.sequence("groups");
+  stack.emplace(seq, seq.cbegin(), std::nullopt);
+
+  while(not stack.empty()) {
+    auto& [seq, iter, parent] = stack.top();
+    if (iter == seq.cend()) {
+      stack.pop();
+      continue;
+    }
+    const auto& node = **iter;
+    std::string_view name = node.isValue("name") ? std::string_view{node.value("name")} : "";
+    std::string_view title = node.isValue("title") ? std::string_view{node.value("title")} : "";
+    std::string_view desc = node.isValue("description") ? std::string_view{node.value("description")} : "";
+    parent_t group = parent;
+    if (name.size() == 0 or std::all_of(name.begin(), name.end(),
+      [](unsigned char c) {return std::isspace(c); })) {
+      // ignore the group
+      warn("a group is missing a name in the configuration file.");
+    } else {
+      group = parent ? registry.add_group(*parent, name, title, desc)
+        : registry.add_group(name, title, desc);
+    }
+    // move to next
+    ++iter;
+    if (node.isSequence("groups")) {
+      // look for a subsequence and push
+      const auto& child_seq = node.sequence("groups");
+      stack.emplace(child_seq, child_seq.cbegin(), group);
     }
   }
 }

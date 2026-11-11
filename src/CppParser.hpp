@@ -1,14 +1,30 @@
 #pragma once
 
-#include "Entity.hpp"
+#include "entities/Entities.hpp"
+#include "entities/FileEntity.hpp"
+#include "entities/FwdRef.hpp"
+#include "entities/NamespaceEntity.hpp"
+#include "entities/RefVariant.hpp"
 
-#include <stdint.h>
 #include <tree_sitter/api.h>
+
+#include <cstdint>
 #include <filesystem>
-#include <list>
+#include <memory>
+#include <optional>
+#include <stack>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+
+struct CommentMatch;
+struct Doc;
+class DocParser;
+struct EntityFieldsMatch;
+class EntityRegistry;
+struct ParserState;
+enum class StyleOption;
+class TextLineCursor;
 
 /**
  * C++ source parser.
@@ -20,7 +36,7 @@ public:
   /**
    * Constructor.
    */
-  CppParser();
+  CppParser(EntityRegistry& registry, StyleOption style);
 
   /**
    * Destructor.
@@ -35,34 +51,13 @@ public:
    * @param defines Macro definitions.
    * @param[in,out] root Root entity.
    */
-  void parse(const std::filesystem::path& filename, const std::string& style,
-      const std::unordered_map<std::string,std::string>& defines,
-      Entity& root);
+  std::optional<FwdRef<FileEntity>> parse(
+    const std::filesystem::path& filename,
+    const std::unordered_map<std::string, std::string>& defines,
+    bool has_coverage
+  );
 
 private:
-  /**
-   * Push onto the stack.
-   *
-   * @param entity Entity to push.
-   * @param start Start byte of range.
-   * @param end End byte of range.
-   */
-  void push(Entity&& entity, const uint32_t start, const uint32_t end);
-
-  /**
-   * Pop the stack down to the parent of an entity, according to its byte
-   * range.
-   *
-   * @param start Start byte of range.
-   * @param end End byte of range.
-   *
-   * @return The parent.
-   *
-   * If both @p start and @p end are zero, this is interpreting as popping the
-   * stack down to the root node and returning it.
-   */
-  Entity& pop(const uint32_t start = 0, const uint32_t end = 0);
-
   /**
    * Preprocess C++ source, replacing preprocessor macros as defined in the
    * config file and attempting to recover from any parse errors. This is
@@ -84,23 +79,57 @@ private:
    * @param in Preprocessed source.
    * @param tree Parse tree for file.
    */
-  void report(const std::filesystem::path& file, const std::string_view in,
-      TSTree* tree);
+  void report(const std::filesystem::path& file, const std::string_view in, TSTree* tree);
 
-  /**
-   * Stack of entities while parsing.
-   */
-  std::list<Entity> entities;
+  struct StackEntry {
+    RefVariant ref;
+    uint32_t start;
+    uint32_t end;
+    bool child_nogroup;
+  };
 
-  /**
-   * Stack of start bytes, corresponding to `entities`, while parsing.
-   */
-  std::list<uint32_t> starts;
+  template<entity T> std::stack<StackEntry>::reference emplace_entity(FwdRef<T> ref, uint32_t start, uint32_t end) {
+    return entities_stack.emplace(ref, start, end);
+  }
 
-  /**
-   * Stack of end bytes, corresponding to `entities`, while parsing.
-   */
-  std::list<uint32_t> ends;
+  std::stack<StackEntry>::const_reference pop_entities_downto_parent(uint32_t start, uint32_t end);
+
+  void pop_all();
+
+  std::stack<StackEntry>::reference push(RefVariant ref, uint32_t start, uint32_t end, bool child_nogroup);
+
+  void parse_entities(
+    const FwdRef<FileEntity>& file_ref,
+    TSNode& root_node
+  );
+
+  void parse_line_count(FwdRef<FileEntity>&, TSTree*) const;
+
+  void register_entity(ParserState& parser_state, const EntityFieldsMatch& entity_match, Doc&& docs);
+
+  void flush_entity(ParserState&, EntityFieldsMatch&);
+
+  void flush_entity_with_comment(ParserState&, EntityFieldsMatch&, CommentMatch&, const TextLineCursor&, bool);
+
+RefVariant make_nested_namespace(
+    const EntityFieldsMatch &match_state,
+    const RefVariant& parent,
+    ParserState& ps,
+    Doc&& doc
+  );
+
+FwdRef<NamespaceEntity> make_single_namespace(
+    const EntityFieldsMatch &match_state,
+    const RefVariant& parent,
+    ParserState& ps,
+    Doc&& doc
+  );
+
+  void check_group(Doc& docs, const ParserState& ps) const;
+
+  EntityRegistry& registry;
+
+  std::unique_ptr<DocParser> doc_parser;
 
   /**
    * C++ parser.
@@ -121,4 +150,6 @@ private:
    * C++ inclusions query.
    */
   TSQuery* query_include;
+
+  std::stack<StackEntry> entities_stack;
 };

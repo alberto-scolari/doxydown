@@ -1,16 +1,8 @@
 #include "DocToken.hpp"
 
-DocToken::DocToken(const DocTokenType type, const TextLineCursor value) :
-    type(type),
-    value(value) {
-  //
-}
-
-
 const TextLineCursor& DocToken::get() const {
   return value;
 }
-
 
 std::string_view DocToken::view() const {
   /* std::string_view(first, last) ought to work with C++20 support, but
@@ -19,6 +11,6 @@ std::string_view DocToken::view() const {
   return value.view();
 }
 
-TextLineCursor DocToken::substr(size_t pos) const {
+TextLineCursor DocToken::substr(std::size_t pos) const {
   return value.substr(pos);
 }

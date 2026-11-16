@@ -4,6 +4,7 @@
 #include "Sink.hpp"
 #include "Utils.hpp"
 
+#include <cstddef>
 #include <string_view>
 
 constexpr std::string_view FRONT = R""""({{

@@ -47,11 +47,13 @@ template<typename R>
   requires (std::ranges::random_access_range<R> and entity_range<R>)
   static void sort_by_name(R&& entities) {
   std::ranges::sort(entities, []<entity T>(const FwdRef<T>& e1, const FwdRef<T>& e2) {
-    std::string_view n1 = e1->get_name(), n2 = e2->get_name();
+    decltype(auto) n1 = e1->get_name();
+    decltype(auto) n2 = e2->get_name();
     if (n1 != n2) {
       return n1 < n2;
     }
-    std::string_view p1 = e1->get_path(), p2 = e2->get_path();
+    decltype(auto) p1 = e1->get_path();
+    decltype(auto) p2 = e2->get_path();
     if (p1 == p2) {
       return e1->get_start_line() < e2->get_start_line();
     }
@@ -248,7 +250,7 @@ void MarkdownGenerator::render_entity(const EntityRegistry& registry, const std:
   const std::string_view dirname = root.is_type<RootEntity>() ? "" : sanitized_name;
 #ifdef DXM_DEBUG
   sink_t csink;
-  csink.println("\tdirname \"{}\", filename \"{}\", output \"{}\"", dirname, filename, output.native());
+  csink.println("\tdirname \"{}\", filename \"{}\", output \"{}\"", dirname, filename, output);
 #endif //DXM_DEBUG
   std::filesystem::path file = output;
   if (dirname.size() > 0) {
@@ -279,8 +281,8 @@ void MarkdownGenerator::generate(const EntityRegistry& registry,
   for (const auto& [v, sanitized_name, output_path]:
     dag_dfs_traverse(controller)) {
 #ifdef DXM_DEBUG
-    sink.println("- getting entity: {} - \"{}\" - [sanitized: '{}'] on path {}",
-      v.get_entity_name(), v.get_name(), sanitized_name, output_path.native());
+    sink.println("- getting entity: {} - \"{}\" - [sanitized: '{}'] on path \"{}\"",
+      v.get_entity_name(), v.get_name(), sanitized_name, output_path);
 #endif //DXM_DEBUG
     if (v.is_visible()) {
       render_entity(registry, output_path, v, sanitized_name, coverage_directory);

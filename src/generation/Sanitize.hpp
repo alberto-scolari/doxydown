@@ -4,7 +4,10 @@
 #include <entities/FwdRef.hpp>
 #include <entities/Entities.hpp>
 
+#include <algorithm>
+#include <array>
 #include <concepts>
+#include <cstddef>
 #include <format>
 #include <regex>
 #include <string>
@@ -27,8 +30,8 @@ struct html_escaped {
 
 template <>
 struct std::formatter<html_escaped, char>: std::formatter<std::string_view> {
-  template <class FormatContext>
-  auto format(const html_escaped& h, FormatContext& ctx) const {
+  template<class FormatContext>
+  FormatContext::iterator format(const html_escaped& h, FormatContext& ctx) const {
     static constexpr std::string_view operator_brackets = "operator[]";
     auto out = ctx.out();
     const std::string_view s = h.text;
@@ -69,7 +72,7 @@ template<> struct std::formatter<sanitized, char>: std::formatter<std::string_vi
   enum class CHAR_TYPE {SPACE, ALNUM, OTHER};
 
   template <class FormatContext>
-  auto format(const sanitized& h, FormatContext& ctx) const {
+  FormatContext::iterator format(const sanitized& h, FormatContext& ctx) const {
     auto out = ctx.out();
     const std::string_view s = h.text;
     std::size_t out_size = 0;
@@ -117,7 +120,7 @@ struct liner {
 template<> struct std::formatter<liner, char>: std::formatter<std::string_view> {
 
   template <class FormatContext>
-  auto format(const liner& h, FormatContext& ctx) const {
+  FormatContext::iterator format(const liner& h, FormatContext& ctx) const {
     static const std::regex newline("\\s*\\n\\s*", REGEX_FLAGS);
     auto out = ctx.out();
     return std::regex_replace(out, h.text.cbegin(), h.text.cend(), newline, " ");

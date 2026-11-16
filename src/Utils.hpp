@@ -1,7 +1,5 @@
 #pragma once
 
-#include "entities/FileUtils.hpp"
-
 #include <algorithm>
 #include <concepts>
 #include <coroutine>
@@ -38,7 +36,7 @@ struct to_upper {
 };
 
 template <> struct std::formatter<to_upper>: std::formatter<std::string_view> {
-    auto format(to_upper wrapper, format_context& ctx) const {
+    template<class FmtContext> FmtContext::iterator format(to_upper wrapper, FmtContext& ctx) const {
       return std::ranges::transform(wrapper.view, ctx.out(), [](char c){
         return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
       }).out;
@@ -52,7 +50,7 @@ struct repeater {
 
 template <> struct std::formatter<repeater>: std::formatter<std::string_view> {
     // This writes the output to the formatting buffer
-    auto format(const repeater& rc, std::format_context& ctx) const {
+    template<class FmtContext> FmtContext::iterator format(const repeater& rc, FmtContext& ctx) const {
         // Efficiently write the character 'rc.count' times directly into the output
         return std::fill_n(ctx.out(), rc.count, rc.ch);
     }
@@ -67,22 +65,6 @@ struct het_string_hash {
 
     std::size_t operator()(const std::string& s) const noexcept {
         return std::hash<std::string>{}(s);
-    }
-};
-
-struct path_het_string_hash {
-    using is_transparent = void; // Enables heterogeneous lookup
-
-    std::size_t operator()(const path_str_view& sv) const noexcept {
-      return std::hash<path_str_view>{}(sv);
-    }
-
-    std::size_t operator()(const path_str& s) const noexcept {
-      return std::hash<path_str>{}(s);
-    }
-
-    std::size_t operator()(const std::filesystem::path& p) const noexcept {
-      return std::hash<path_str>{}(p.native());
     }
 };
 

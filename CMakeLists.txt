@@ -63,6 +63,7 @@ add_executable(doxydown
   src/DriverConfigParser.cpp
   src/FileSystemDeleter.cpp
   src/FileSystemStatsInfo.cpp
+  src/FileUtils.cpp
   src/GcovCounter.cpp
   src/JSONCounter.cpp
   src/JSONGenerator.cpp

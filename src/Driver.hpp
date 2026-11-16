@@ -1,6 +1,5 @@
 #pragma once
 
-#include "DriverConfigParser.hpp"
 #include "FileSystemDeleter.hpp"
 #include "FileSystemStatsInfo.hpp"
 #include "StyleOption.hpp"
@@ -14,6 +13,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+class DriverConfigParser;
 class YAMLNode;
 
 /**
@@ -32,7 +32,7 @@ public:
 
   Driver& operator=(const Driver&) = delete;
 
-  Driver(const DriverInitInfo&, const std::optional<DriverConfigParser>&);
+  Driver(const DriverConfigParser&);
 
   /**
    * Create a new configuration file.
@@ -59,6 +59,7 @@ public:
    */
   void clean();
 
+private:
   /**
    * Markdown style.
    */
@@ -77,39 +78,12 @@ public:
   /**
    * Coverage file.
    */
-  std::filesystem::path coverage;
+  std::optional<std::filesystem::path> coverage;
 
   /**
    * Output directory.
    */
   std::filesystem::path output;
-private:
-  /**
-   * Parse files.
-   */
-  void parse();
-
-  /**
-   * Count line coverage.
-   */
-  void count();
-
-  void aggregate_stats();
-
-  bool has_coverage() const noexcept;
-
-  std::optional<std::filesystem::path> get_coverage_path() const;
-
-  std::optional<std::string_view> get_coverage_suffix() const;
-
-  void run_generation();
-
-  void remove_file(const std::filesystem::path filename);
-
-  /**
-   * Read groups from the configuration file.
-   */
-  void groups(const YAMLNode& parentNode);
 
   FileSystemDeleter fscleaner;
 
@@ -118,7 +92,7 @@ private:
   /**
    * Configuration file path.
    */
-  std::optional<std::string> config_file;
+  std::optional<std::filesystem::path> config_file;
 
   /**
    * Macro definitions.
@@ -136,4 +110,29 @@ private:
   std::vector<std::string> files_patterns;
 
   FileSystemStatsInfo fsinfo;
+
+  /**
+   * Parse files.
+   */
+  void parse();
+
+  /**
+   * Count line coverage.
+   */
+  void count();
+
+  void aggregate_stats();
+
+  std::optional<std::filesystem::path> get_coverage_path() const;
+
+  std::optional<std::string_view> get_coverage_suffix() const;
+
+  void run_generation();
+
+  void remove_file(const std::filesystem::path filename);
+
+  /**
+   * Read groups from the configuration file.
+   */
+  void groups(const YAMLNode& parentNode);
 };

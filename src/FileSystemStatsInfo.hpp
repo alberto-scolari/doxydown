@@ -1,15 +1,15 @@
 #pragma once
 
-#include "Utils.hpp"
 #include "entities/FileEntity.hpp"
 #include "entities/FwdRef.hpp"
 #include "entities/LineStats.hpp"
+
+#include <FileUtils.hpp>
 
 #include <filesystem>
 #include <format>
 #include <functional>
 #include <optional>
-#include <unordered_map>
 #include <unordered_set>
 #include <stdexcept>
 #include <tuple>
@@ -24,10 +24,8 @@ public:
 
   FileSystemStatsInfo& operator=(const FileSystemStatsInfo&) = delete;
 
-  static inline constexpr path_str_view DEF_ROOT_PATH = "./";
-
   struct DirInfo {
-    std::unordered_set<path_str_view> subdirs;
+    std::unordered_set<path_ref> subdirs;
     std::unordered_set<FwdRef<FileEntity>> files;
     LineStats stats;
 
@@ -46,12 +44,22 @@ public:
 
   std::optional<std::reference_wrapper<const DirInfo>> lookup_dir(path_str_view path) const;
 
+  inline std::optional<std::reference_wrapper<DirInfo>> lookup_dir(const std::filesystem::path& path) {
+    path_str_view v{path.native()};
+    return lookup_dir(v);
+  }
+
+  inline std::optional<std::reference_wrapper<const DirInfo>> lookup_dir(const std::filesystem::path& path) const {
+    path_str_view v{path.native()};
+    return lookup_dir(v);
+  }
+
   void add_file(const std::filesystem::path& path, FwdRef<FileEntity> file);
 
   void explore() const;
 
   bool contains(const std::filesystem::path& p) const {
-    return files_map.contains(p.native());
+    return files_map.contains(p);
   }
 
   void remove_file(const std::filesystem::path& filepath);
@@ -62,8 +70,8 @@ public:
   }
 
 private:
-  std::unordered_map<path_str, DirInfo, path_het_string_hash, std::equal_to<>> dir_info_map;
-  std::unordered_map<path_str_view, FwdRef<FileEntity>> files_map;
+  path_unordered_map<std::filesystem::path, DirInfo> dir_info_map;
+  path_unordered_map<path_str_view, FwdRef<FileEntity>> files_map;
 
   std::optional<FwdRef<FileEntity>> do_lookup_file(path_str_view path);
 };
@@ -76,13 +84,13 @@ template<bool IS_CONST> struct _DirStackController {
     const FileSystemStatsInfo, FileSystemStatsInfo>;
 
   using iter_t = std::conditional_t<IS_CONST,
-    std::unordered_set<path_str_view>::const_iterator,
-    std::unordered_set<path_str_view>::iterator>;
-  using stack_value = std::tuple<path_str_view, _dirinfo_t&, iter_t>;
-  using yield_value = std::tuple<path_str_view, _dirinfo_t&>;
+    std::unordered_set<path_ref>::const_iterator,
+    std::unordered_set<path_ref>::iterator>;
+  using stack_value = std::tuple<path_ref, _dirinfo_t&, iter_t>;
+  using yield_value = std::tuple<const std::filesystem::path&, _dirinfo_t&>;
 
   _fsinfo_t& fsinfo;
-  path_str_view root_dir = FileSystemStatsInfo::DEF_ROOT_PATH;
+  std::filesystem::path root_dir = DEF_ROOT_PATH;
 
   stack_value make_init() {
     auto opt = fsinfo.lookup_dir(root_dir);
@@ -107,7 +115,7 @@ template<bool IS_CONST> struct _DirStackController {
 
   stack_value make_next(stack_value& top) {
     iter_t& it = std::get<2>(top);
-    path_str_view next_path = *it;
+    const path_ref& next_path = *it;
     ++it;
     auto opt = fsinfo.lookup_dir(next_path);
     if (not opt) {

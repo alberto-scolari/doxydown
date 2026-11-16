@@ -1,7 +1,6 @@
 #include "DocRenderers.hpp"
 
 #include "Sanitize.hpp"
-#include <Regex.hpp>
 #include <Sink.hpp>
 #include "entities/ConceptEntity.hpp"
 #include <entities/Entities.hpp>
@@ -54,22 +53,28 @@ struct MkdDocRender {
     sink.println("`{}`\n:   {}\n", e->get_decl(), e->get_docs());
   }
 
+  static constexpr std::string_view NEWLINE_INDENT{"\n    "};
+
   void print_indent_line(std::string_view s) {
     static const std::regex start("\\n", REGEX_FLAGS);
+    // std::regex_replace requires exactly a string
+    static const std::string NI{NEWLINE_INDENT};
     sink.print("    ");
-    std::regex_replace(sink.iter(), s.begin(), s.end(), start, "\n    ");
+    std::regex_replace(sink.iter(), s.cbegin(), s.cend(), start, NI);
     sink.println();
   }
 
-  static constexpr std::string_view NEWLINE_INDENT = "\n    ";
-  static constexpr std::string_view INDENT = NEWLINE_INDENT.substr(1);
+  static constexpr std::string_view INDENT{NEWLINE_INDENT.substr(1)};
+
   template<entity U> void print_detail(const FwdRef<U>& e, std::string_view name) {
     static const std::regex start("\\n", REGEX_FLAGS);
+    // std::regex_replace requires exactly a string
+    static const std::string IND{INDENT};
     sink.print("!!! {1} \"{2}\"\n{0}\n{0}",
-      INDENT, name, html_escaped(get_line(e->get_decl())));
+      IND, name, html_escaped(get_line(e->get_decl())));
     std::string_view docs = e->get_docs();
-    std::regex_replace(sink.iter(), docs.begin(), docs.end(), start, NEWLINE_INDENT.cbegin());
-    sink.println("\n{}\n", INDENT);
+    std::regex_replace(sink.iter(), docs.cbegin(), docs.cend(), start, IND);
+    sink.println("\n{}\n", IND);
   }
 
   void print_detail(const FwdRef<TypedefEntity>& e) {
@@ -174,13 +179,16 @@ struct PlainRender {
     sink.println("  - `{}`\n    {}\n", e->get_decl(), e->get_docs());
   }
 
-  static constexpr std::string_view NEWLINE_INDENT = "\n> ";
-  static constexpr std::string_view INDENT = NEWLINE_INDENT.substr(1);
+  static constexpr std::string_view NEWLINE_INDENT{"\n> "};
+  static constexpr std::string_view INDENT{NEWLINE_INDENT.substr(1)};
+
   template<entity U> void _print_detail(const FwdRef<U>& e) {
     static const std::regex start("\\n", REGEX_FLAGS);
+    // std::regex_replace requires exactly a string
+    static const std::string NI{NEWLINE_INDENT};
     sink.println("{0}**`{1}`**\n{0}\n{0}", INDENT, liner(e->get_decl()));
     std::string_view docs = e->get_docs();
-    std::regex_replace(sink.iter(), docs.begin(), docs.end(), start, NEWLINE_INDENT.cbegin());
+    std::regex_replace(sink.iter(), docs.cbegin(), docs.cend(), start, NI);
     sink.println("\n{0}\n", INDENT);
   }
 
@@ -308,15 +316,20 @@ private:
 
 
 std::unique_ptr<DocRendererFactory> make_doc_renderer(StyleOption style) {
+  std::unique_ptr<DocRendererFactory> res;
   switch (style) {
     case StyleOption::MKDOCS: {
-      return std::unique_ptr<DocRendererFactory>(new FactoryImpl<MkdDocRender>());
+      res = std::unique_ptr<DocRendererFactory>(new FactoryImpl<MkdDocRender>());
+      break;
     }
     case StyleOption::PANDOCS: {
-      return std::unique_ptr<DocRendererFactory>(new FactoryImpl<PandocRender>());
+      res = std::unique_ptr<DocRendererFactory>(new FactoryImpl<PandocRender>());
+      break;
     }
     case StyleOption::PLAIN: {
-      return std::unique_ptr<DocRendererFactory>(new FactoryImpl<PlainRender>());
+      res = std::unique_ptr<DocRendererFactory>(new FactoryImpl<PlainRender>());
+      break;
     }
   }
+  return res;
 }

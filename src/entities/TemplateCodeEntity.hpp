@@ -10,7 +10,7 @@
 
 template<bool _is_template> class TemplateCodeEntity: public CodeEntity {
 public:
-  constexpr TemplateCodeEntity(std::string_view template_decl, std::string_view entity_decl, const TextCoordinates& name_coords, const FwdRef<FileEntity>& file, uint32_t start_line, uint32_t end_line, const Doc& docs, bool visible):
+  TemplateCodeEntity(std::string_view template_decl, std::string_view entity_decl, const TextCoordinates& name_coords, const FwdRef<FileEntity>& file, uint32_t start_line, uint32_t end_line, const Doc& docs, bool visible):
     CodeEntity(
       template_decl.empty() ? std::string(entity_decl) : std::format("{} {}", template_decl, entity_decl),
       template_decl.empty() ? name_coords : TextCoordinates(name_coords.offset() + template_decl.size() + 1, name_coords.len()),
@@ -20,7 +20,7 @@ public:
         }
       }
 
-  constexpr TemplateCodeEntity(std::string_view template_decl, std::string_view entity_decl, const TextCoordinates& name_coords, const FwdRef<FileEntity>& file, uint32_t start_line, uint32_t end_line, Doc&& docs, bool visible):
+  TemplateCodeEntity(std::string_view template_decl, std::string_view entity_decl, const TextCoordinates& name_coords, const FwdRef<FileEntity>& file, uint32_t start_line, uint32_t end_line, Doc&& docs, bool visible):
     CodeEntity(
       template_decl.empty() ? std::string(entity_decl) : std::format("{} {}", template_decl, entity_decl),
       template_decl.empty() ? name_coords : TextCoordinates(name_coords.offset() + template_decl.size() + 1, name_coords.len()),
@@ -30,11 +30,11 @@ public:
         }
       }
 
-  constexpr bool is_template() const noexcept {
+  bool is_template() const noexcept {
     return not get_template_decl().empty();
   }
 
-  constexpr std::string_view get_template_decl() const noexcept {
+  std::string_view get_template_decl() const noexcept {
     return _template_decl;
   }
 

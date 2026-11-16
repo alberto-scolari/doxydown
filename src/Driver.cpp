@@ -1,6 +1,7 @@
 #include "Driver.hpp"
 
 #include "CppParser.hpp"
+#include "DriverConfigParser.hpp"
 #include "FileSystemStatsInfo.hpp"
 #include "GcovCounter.hpp"
 #include "JSONCounter.hpp"
@@ -189,19 +190,19 @@ R""""(<div class="md-copyright">
 </div>
 )"""";
 
-Driver::Driver(const DriverInitInfo& init_info, const std::optional<DriverConfigParser>& config_parser) :
-  style(str_to_style_option(init_info.style)),
-  title(init_info.title),
-  description(init_info.description),
-  coverage(init_info.coverage),
-  output(init_info.output),
+Driver::Driver(const DriverConfigParser& config_parser) :
+  style(config_parser.get_style()),
+  title(config_parser.get_title()),
+  description(config_parser.get_description()),
+  coverage(config_parser.get_coverage()),
+  output(config_parser.get_output()),
   fscleaner(output),
   registry(title, description) {
-  if (config_parser) {
-    config_file = config_parser->get_config_file();
-    defines = config_parser->get_defines();
-    std::tie(filenames, files_patterns) = config_parser->get_filenames_and_patterns();
-    groups(config_parser->get_root());
+  if (auto f = config_parser.get_config_file(); f) {
+    config_file = f;
+    defines = config_parser.get_defines();
+    std::tie(filenames, files_patterns) = config_parser.get_filenames_and_patterns();
+    groups(config_parser.get_root());
   }
 }
 
@@ -228,7 +229,7 @@ void Driver::watch() {
   std::cout << "Start watching" << std::endl;
 
   std::optional<SourceWatcher> config_watcher = config_file ?
-    std::optional<SourceWatcher>{SourceWatcher(*config_file)} : std::optional<SourceWatcher>{};
+    std::optional<SourceWatcher>{SourceWatcher(config_file->string())} : std::optional<SourceWatcher>{};
   SourceWatcher watcher = SourceWatcher(files_patterns);
 
   CppParser parser(registry, style);
@@ -245,7 +246,7 @@ void Driver::watch() {
       registry.clear();
       build();
 
-      config_watcher = SourceWatcher(*config_file);
+      config_watcher = SourceWatcher(config_file->string());
       watcher = SourceWatcher(files_patterns);
 
       std::cout << "Done" << std::endl;
@@ -278,10 +279,10 @@ void Driver::watch() {
       }
 
       for (const auto& filename: changed_files) {
-        parser.parse(filename, defines, has_coverage());
+        parser.parse(filename, defines, coverage.has_value());
       }
       for (const auto& filename: added_files) {
-        parser.parse(filename, defines, has_coverage());
+        parser.parse(filename, defines, coverage.has_value());
       }
 
       count();
@@ -313,9 +314,9 @@ void Driver::parse() {
   for (const auto& filename: filenames) {
     auto fp = filename.lexically_normal();
     if (fsinfo.contains(fp)) {
-      throw std::runtime_error(std::format("file \"{}\" is already parsed", fp.native()));
+      throw std::runtime_error(std::format("file \"{}\" is already parsed", fp));
     }
-    std::optional<FwdRef<FileEntity>> file = parser.parse(fp, defines, has_coverage());
+    std::optional<FwdRef<FileEntity>> file = parser.parse(fp, defines, coverage.has_value());
     if (not file) {
       continue;
     }
@@ -324,18 +325,18 @@ void Driver::parse() {
 }
 
 void Driver::count() {
-  if (!coverage.empty()) {
+  if (coverage) {
     try {
-      auto ext = coverage.extension();
+      auto ext = coverage->extension();
       if (ext == ".gcov") {
         GcovCounter counter;
-        counter.count(coverage, fsinfo);
+        counter.count(*coverage, fsinfo);
       } else if (ext == ".json") {
         JSONCounter counter;
-        counter.count(coverage, fsinfo);
+        counter.count(*coverage, fsinfo);
       } else {
         throw std::runtime_error("unrecognized file extension on " +
-            coverage.string());
+            coverage->string());
       }
       aggregate_stats();
     } catch (const std::runtime_error& e) {
@@ -360,19 +361,15 @@ void Driver::aggregate_stats() {
 #endif //DXM_DEBUG
 }
 
-bool Driver::has_coverage() const noexcept {
-  return not coverage.empty();
-}
-
 std::optional<std::filesystem::path> Driver::get_coverage_path() const {
-  if (has_coverage()) {
+  if (coverage) {
     return output / "coverage";
   }
   return {};
 }
 
 std::optional<std::string_view> Driver::get_coverage_suffix() const {
-  if (has_coverage()) {
+  if (coverage) {
     return "coverage";
   }
   return {};

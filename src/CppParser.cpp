@@ -137,7 +137,7 @@ static const std::regex comment_regex(
 
 static CommentType get_comment_type(const std::string_view& text) {
   // TODO: avoid heap allocations with CTRE
-  std::cmatch match;
+  std::match_results<std::string_view::const_iterator> match;
   if (std::regex_search(text.begin(), text.end(), match, comment_regex)) {
     if (match[1].matched) {
       return CommentType::MULTI_FORWARD;
@@ -184,7 +184,7 @@ void CppParser::check_group(Doc& docs, const ParserState& ps) const {
   }
 }
 
-constexpr RefVariant make_entity(
+RefVariant make_entity(
   const EntityFieldsMatch &match_state,
   const RefVariant& parent,
   const TSQuery* query,

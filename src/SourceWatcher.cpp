@@ -2,6 +2,8 @@
 
 #include <glob/glob.hpp>
 
+#include <utility>
+
 SourceWatcher::SourceWatcher(const std::vector<std::string>& patterns): patterns{patterns}{
   for (auto pattern : patterns){
     auto paths = glob::rglob(pattern);
@@ -14,6 +16,9 @@ SourceWatcher::SourceWatcher(const std::vector<std::string>& patterns): patterns
 SourceWatcher::SourceWatcher(const std::string_view& pattern): SourceWatcher(std::vector<std::string>{std::string{pattern}}){
   //
 }
+
+SourceWatcher::SourceWatcher(std::string&& pattern):
+  SourceWatcher(std::vector<std::string>{std::string{std::move(pattern)}}) {}
 
 std::tuple<std::unordered_set<std::filesystem::path>,
            std::unordered_set<std::filesystem::path>,

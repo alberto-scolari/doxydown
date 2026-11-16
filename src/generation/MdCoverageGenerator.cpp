@@ -2,12 +2,12 @@
 
 #include <FileSystemDeleter.hpp>
 #include <FileSystemStatsInfo.hpp>
+#include <FileUtils.hpp>
 #include <Sink.hpp>
 #include <Utils.hpp>
 #include <entities/FileEntity.hpp>
 #include <entities/FwdRef.hpp>
 #include <entities/LineStats.hpp>
-#include <entities/FileUtils.hpp>
 
 #include "MdCommon.hpp"
 #include "Sanitize.hpp"
@@ -22,7 +22,9 @@
 #include <tuple>
 #include <utility>
 
+#ifdef DXM_DEBUG
 #include <iostream>
+#endif //DXM_DEBUG
 
 static constexpr std::string_view SUNBURST_PRELUDE = R""""(
 <div id="coverage-sunburst" style="aspect-ratio:1/1;width:100%;max-width:600px;margin:auto;"></div>
@@ -209,12 +211,16 @@ template<typename T> DfsPrePostData<T> make_post_dfs(T&& data) {
   return DfsPrePostData(false, std::move(data));
 }
 
-using render_buffers_t = std::tuple<std::string&, std::string&, std::string&>;
+using render_buffers_t = std::tuple<std::string&, std::string&, std::string&, std::string&>;
 
-static void render_entry(sink_t& sink, const LineStats& stats, char letter, std::string_view root,
-  std::string_view dirpath, std::string_view name, std::string_view material, render_buffers_t& buffers) {
-  std::string& parent = format_to_str(std::get<0>(buffers), "{}",
-    sanitized{file_utils::relative_path(file_utils::parent_path(dirpath), root)});
+static void render_entry(sink_t& sink, const LineStats& stats, char letter, const std::filesystem::path& root,
+  const std::filesystem::path& dirpath, std::string_view name, std::string_view material, render_buffers_t& buffers) {
+
+  auto relative = std::filesystem::relative(dirpath.parent_path(), root);
+  std::string& relative_str = format_to_str(std::get<3>(buffers), "{}", relative);
+
+  std::string& parent = format_to_str(
+    std::get<0>(buffers), "{}", sanitized{relative_str});
   std::string& sname = format_to_str(std::get<1>(buffers), "{}", sanitized{name});
   DisplayStats ds(stats);
   std::string_view style = parent.empty() ? "" : " style=\"display:none;\"";
@@ -252,17 +258,19 @@ struct CoverageDfs: public ConstDirStackController {
 struct DirCovInfo {
   const FileSystemStatsInfo& fsinfo;
   sink_t& sink;
-  std::string_view dirpath;
+  const std::filesystem::path& dirpath;
   const FileSystemStatsInfo::DirInfo& dirinfo;
   bool is_not_root;
 };
 
+static const std::filesystem::path EMPTY_PATH = std::filesystem::path{""};
+
 static void coverage_data(DirCovInfo& info) {
-  std::string_view root = info.is_not_root ? info.dirpath : "";
+  const std::filesystem::path& root = info.is_not_root ? info.dirpath : EMPTY_PATH;
   CoverageDfs controller{info.fsinfo, info.dirpath};
   // rendering buffers
-  std::string b1, b2, b3;
-  auto buffers = std::tie(b1, b2, b2);
+  std::string b1, b2, b3, b4;
+  auto buffers = std::tie(b1, b2, b2, b4);
   for (const auto& dirdata: dag_dfs_traverse<DfsTraversalType::BOTH>(controller)) {
     const auto& [dirpath, dirinfo] = dirdata.data;
     if (dirdata.pre) {
@@ -270,22 +278,24 @@ static void coverage_data(DirCovInfo& info) {
         continue;
       }
       render_entry(info.sink, dirinfo.stats, 'a', root, dirpath,
-        file_utils::get_filename(dirpath), material_folder, buffers);
+        dirpath.filename().string(), material_folder, buffers);
     } else {
       for(const auto& fe: dirinfo.files) {
         render_entry(info.sink, *fe, 'b', root, fe->get_path(),
-          fe->get_filename(), material_file_outline, buffers);
+          fe->get_filename().string(), material_file_outline, buffers);
       }
     }
   }
 }
 
 static void coverage_foot(DirCovInfo& info) {
-  std::string_view root = info.is_not_root ? info.dirpath : "";
+  const std::filesystem::path& root = info.is_not_root ? info.dirpath : EMPTY_PATH;
   ConstDirStackController controller{info.fsinfo, info.dirpath};
+  std::string path_buffer;
   std::string name_buffer;
   for (const auto& [dirpath, dirinfo]: dag_dfs_traverse<DfsTraversalType::POST>(controller)) {
-    std::string_view path = dirpath != FileSystemStatsInfo::DEF_ROOT_PATH ? dirpath : "";
+    const std::filesystem::path& p = dirpath != DEF_ROOT_PATH ? dirpath : EMPTY_PATH;
+    std::string& path = format_to_str(path_buffer, "{}", p);
     std::string& name = format_to_str(name_buffer, "{}", sanitized{path});
     std::string_view style = (name == root) ? "" : " style=\"display:none;\"";
     const auto& stats = dirinfo.stats;
@@ -342,7 +352,7 @@ struct SubdirCovDfs: public ConstDirStackController {
 };
 
 static void render_sunburst_preamble(DirCovInfo& covinfo,
-  const std::string_view& dirpath, const FileSystemStatsInfo::DirInfo& dirinfo,
+  const std::filesystem::path& dirpath, const FileSystemStatsInfo::DirInfo& dirinfo,
   double coverage_percentage, bool is_first_subdir) {
   static constexpr std::string_view SUNBURST_CHILDREN_PREAMBLE =
     "{{name: \"{}\", path: \"{}\", value: {},"
@@ -353,9 +363,9 @@ static void render_sunburst_preamble(DirCovInfo& covinfo,
   if (not is_first_subdir) {
     covinfo.sink.print(", ");
   }
-  std::string_view relative_path = covinfo.is_not_root ?
-    dirpath.substr(covinfo.dirpath.size() + 1) : dirpath;
-  std::string_view dirname = file_utils::get_filename(relative_path);
+  auto relative_path = covinfo.is_not_root ?
+    std::filesystem::relative(dirpath, covinfo.dirpath) : dirpath;
+  auto dirname = relative_path.filename();
   std::string_view icon = DisplayStats::get_icon(coverage_percentage);
   covinfo.sink.print(SUNBURST_CHILDREN_PREAMBLE, dirname, relative_path,
     dirinfo.stats.included_lines, icon
@@ -363,7 +373,7 @@ static void render_sunburst_preamble(DirCovInfo& covinfo,
 }
 
 static void render_sunburst_postamble(DirCovInfo& covinfo,
-  const std::string_view& root,
+  const std::filesystem::path& root,
   const FileSystemStatsInfo::DirInfo& dirinfo, double coverage_percentage) {
   static constexpr std::string_view SUNBURST_CHILDREN_POSTAMBLE =
     "], itemStyle: {{ color: \"#{0}dd\", borderColor: \"#{0}\"}}, "
@@ -382,13 +392,13 @@ static void render_sunburst_postamble(DirCovInfo& covinfo,
   if (not first) {
     covinfo.sink.print(SUNBURST_CHILDREN_POSTAMBLE, color);
   }
-  std::size_t rel_beginning = not root.empty() ? root.size() + 1 : 0;
+  const std::filesystem::path& rel_root = not root.empty() ? root : EMPTY_PATH;
   for(const auto& fe: dirinfo.files) {
     if (not first) {
       covinfo.sink.print(", ");
     }
     DisplayStats ds(*fe);
-    std::string_view relative_path = fe->get_path().substr(rel_beginning);
+    auto relative_path = std::filesystem::relative(fe->get_path(), rel_root);
     first = false;
     covinfo.sink.print(SUNBURST_FILE_COVERAGE_INFO, fe->get_filename(), relative_path,
       fe->get_included_lines(), ds.icon, ds.color);
@@ -397,7 +407,7 @@ static void render_sunburst_postamble(DirCovInfo& covinfo,
 
 static void sunburst(DirCovInfo& covinfo) {
   covinfo.sink.print("{}", SUNBURST_PRELUDE);
-  std::string_view root = covinfo.is_not_root ? covinfo.dirpath : "";
+  const std::filesystem::path& root = covinfo.is_not_root ? covinfo.dirpath : EMPTY_PATH;
   SubdirCovDfs controller{covinfo.fsinfo, covinfo.dirpath};
   for (const auto& dirdata:
     dag_dfs_traverse<DfsTraversalType::BOTH>(controller)) {
@@ -444,7 +454,7 @@ static void render_file_coverage(FileSystemDeleter& fscleaner,
    * that works with pandoc output */
 
   sink.println(FRONTMATTER);
-  sink.println("# {}\n", file_utils::get_filename(file->get_name()));
+  sink.println("# {}\n", file->get_filename());
   sink.println("{}\n", file->get_docs());
   /* for MkDocs, line numbers are added with the Markdown notation
    * `{linenums="1"}` below, which ultimately creates a HTML <table> of
@@ -521,7 +531,7 @@ void MdCoverageGenerator::generate(const FileSystemStatsInfo& fsinfo) {
 #ifdef DXM_DEBUG
       std::cout << "-- dir: " << dirpath << std::endl;
 #endif //DXM_DEBUG
-      const bool is_not_root = dirpath != FileSystemStatsInfo::DEF_ROOT_PATH;
+      const bool is_not_root = dirpath != DEF_ROOT_PATH;
       std::filesystem::path outpath = is_not_root ?  output_root / dirpath : output_root;
       std::filesystem::create_directories(outpath);
       std::filesystem::path file = outpath / "index.md";
@@ -531,8 +541,8 @@ void MdCoverageGenerator::generate(const FileSystemStatsInfo& fsinfo) {
       std::ofstream out(file);
       fscleaner.add_file(file);
       sink_t sink(out);
-      std::string_view title = is_not_root?
-        file_utils::get_filename(dirpath) : "Code Coverage";
+      std::string title = is_not_root?
+        dirpath.filename().string() : std::string{"Code Coverage"};
       DirCovInfo info{fsinfo, sink, dirpath, dirinfo, is_not_root};
       render_dir_coverage(info, title);
     } else {

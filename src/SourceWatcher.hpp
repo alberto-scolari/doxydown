@@ -29,6 +29,9 @@ public:
    */
   SourceWatcher(const std::string_view& pattern);
 
+  SourceWatcher(std::string&& pattern);
+
+
   /**
    * Check if any of the watched files changed since the last call to `changed()` or `diff()`.
    */

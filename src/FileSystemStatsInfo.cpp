@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <format>
 #include <stdexcept>
+#include <utility>
 
 #ifdef DXM_DEBUG
 #include <iostream>
@@ -40,39 +41,41 @@ void FileSystemStatsInfo::add_file(const std::filesystem::path& path, FwdRef<Fil
   }
 
   fs::path normalized = path.lexically_normal();
-  auto [_, newly_created] = files_map.try_emplace(file->get_name(), file);
+  auto [_, newly_created] = files_map.try_emplace(file->get_path().native(), file);
   if (not newly_created) {
-    throw std::runtime_error(std::format("file '{}' was already added", normalized.native()));
+    throw std::runtime_error(std::format("file '{}' was already added", normalized));
   }
 
-  auto get_or_create_path = [&](path_str_view path) {
+  auto get_or_create_path = [&](fs::path&& path) {
     auto it = dir_info_map.find(path);
     if (it == dir_info_map.end()) {
-      auto [pit, _] = dir_info_map.try_emplace(std::string(path));
+      auto [pit, _] = dir_info_map.try_emplace(path);
       it = pit;
     }
     return it;
   };
 
   fs::path parent = normalized.parent_path();
-  path_str_view parent_view = not parent.empty() ? parent.native() : DEF_ROOT_PATH;
-  auto it = get_or_create_path(parent_view);
+  const bool no_parent = parent.empty();
+  auto it = get_or_create_path(not no_parent ?
+    std::move(parent) : fs::path{DEF_ROOT_PATH});
   it->second.files.insert(file);
-  if (parent.empty()) {
+  if (no_parent) {
     return;
   }
 
   parent = parent.parent_path();
   while(not parent.empty()) {
-    auto pit = get_or_create_path(parent.native());
+    auto pit = get_or_create_path(std::move(parent));
     pit->second.subdirs.insert(it->first);
     it = pit;
     parent = parent.parent_path();
   }
 
-  auto pit = get_or_create_path(DEF_ROOT_PATH);
+  auto pit = get_or_create_path(fs::path{DEF_ROOT_PATH});
   pit->second.subdirs.insert(it->first);
 }
+
 #ifdef DXM_DEBUG
 void FileSystemStatsInfo::explore() const {
   std::cout << "DIRS\n";
@@ -104,15 +107,14 @@ void FileSystemStatsInfo::explore() const {
 void FileSystemStatsInfo::remove_file(const std::filesystem::path& filepath) {
   namespace fs = std::filesystem;
   fs::path normalized = filepath.lexically_normal();
-  path_str_view norm_view = normalized.native();
   auto file_it = files_map.find(normalized.native());
   if (file_it == files_map.end()) {
-    throw std::runtime_error(std::format("cannot find file name \"{}\"", filepath.native()));
+    throw std::runtime_error(std::format("cannot find file name \"{}\"", filepath));
   }
   FwdRef<FileEntity> fe = file_it->second;
   files_map.erase(file_it);
 
-  auto get_opt_path = [&](path_str_view path) {
+  auto get_opt_path = [&](const std::filesystem::path& path) {
     auto it = dir_info_map.find(path);
     if (it == dir_info_map.end()) {
       return std::optional<decltype(it)>();
@@ -122,19 +124,20 @@ void FileSystemStatsInfo::remove_file(const std::filesystem::path& filepath) {
 
   fs::path parent = normalized.parent_path();
   bool is_root = parent.empty();
-  path_str_view parent_view = not is_root ? parent.native() : DEF_ROOT_PATH;
-  auto parent_it = get_opt_path(parent_view);
-  if (parent_it) {
-    (*parent_it)->second.files.erase(fe);
+  auto parent_it_opt = get_opt_path(parent);
+  if (parent_it_opt) {
+    (*parent_it_opt)->second.files.erase(fe);
   }
-  while(parent_it and (*parent_it)->second.files.empty() and (*parent_it)->second.subdirs.empty() and not is_root) {
-    std::size_t last_sep = (*parent_it)->first.find_last_of('/');
-    is_root = last_sep == 0 or last_sep == std::string_view::npos;
-    path_str_view parent_view = is_root ? DEF_ROOT_PATH : norm_view.substr(0, last_sep);
-    auto current_it = *parent_it;
-    parent_it = get_opt_path(parent_view);
-    if (parent_it) {
-      (*parent_it)->second.subdirs.erase(current_it->first);
+  while(parent_it_opt and (*parent_it_opt)->second.files.empty()
+    and (*parent_it_opt)->second.subdirs.empty() and not is_root) {
+
+    parent = (*parent_it_opt)->first.parent_path();
+    is_root = parent.empty() or parent == SEPARATOR_PATH;
+    fs::path p = is_root ? DEF_ROOT_PATH : parent;
+    auto current_it = *parent_it_opt;
+    parent_it_opt = get_opt_path(p);
+    if (parent_it_opt) {
+      (*parent_it_opt)->second.subdirs.erase(current_it->first);
     }
     dir_info_map.erase(current_it);
   }

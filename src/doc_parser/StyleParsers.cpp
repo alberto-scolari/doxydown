@@ -363,15 +363,20 @@ public:
 };
 
 std::unique_ptr<DocParser> make_doc_parser(StyleOption style) {
+  std::unique_ptr<DocParser> res;
   switch (style) {
     case StyleOption::MKDOCS: {
-      return std::unique_ptr<DocParser>(new BaseParser<MkDocsStyle>());
+      res = std::unique_ptr<DocParser>(new BaseParser<MkDocsStyle>());
+      break;
     }
     case StyleOption::PANDOCS: {
-      return std::unique_ptr<DocParser>(new BaseParser<PandocStyle>());
+      res = std::unique_ptr<DocParser>(new BaseParser<PandocStyle>());
+      break;
     }
     case StyleOption::PLAIN: {
-      return std::unique_ptr<DocParser>(new BaseParser<PlainStyle>());
+      res = std::unique_ptr<DocParser>(new BaseParser<PlainStyle>());
+      break;
     }
   }
+  return res;
 }

@@ -1,8 +1,10 @@
 #pragma once
 
+#include "StyleOption.hpp"
 #include "YAMLNode.hpp"
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -10,40 +12,53 @@
 #include <vector>
 #include <utility>
 
-struct DriverInitInfo {
-  std::string style = "";
-  std::string title = "";
-  std::string description = "";
-  std::string coverage = "";
-  std::string output = "";
-
-  DriverInitInfo() = default;
-
-  DriverInitInfo(DriverInitInfo&&) = default;
-};
-
 class DriverConfigParser {
 public:
-  DriverConfigParser() = delete;
+  std::optional<std::string> style_str;
+  std::optional<std::string> title;
+  std::optional<std::string> description;
+  std::optional<std::filesystem::path> coverage;
+  std::optional<std::filesystem::path> output;
+
+  DriverConfigParser() = default;
 
   DriverConfigParser(const DriverConfigParser&) = delete;
 
   DriverConfigParser& operator=(const DriverConfigParser&) = delete;
 
-  DriverConfigParser(const std::string_view& _yaml_path);
+  std::string_view get_title() const noexcept;
 
-  std::string_view get_config_file() const noexcept { return yaml_path; }
+  std::string_view get_description() const noexcept;
+
+  const std::filesystem::path& get_output() const noexcept;
+
+  StyleOption get_style() const;
+
+  inline std::optional<std::filesystem::path> get_coverage() const noexcept {
+    return coverage;
+  }
+
+  inline const std::optional<std::filesystem::path>& get_config_file() const noexcept { return yaml_path; }
 
   const YAMLNode& get_root() const noexcept { return root; }
 
-  void parse_init_info(DriverInitInfo& info) const;
+  void parse_config_yaml(const std::string_view& info);
 
   std::unordered_map<std::string, std::string> get_defines() const;
 
   std::pair<std::unordered_set<std::filesystem::path>, std::vector<std::string>>
     get_filenames_and_patterns() const;
-
 private:
-  std::string yaml_path;
+  std::optional<StyleOption> style;
+
+  std::optional<std::filesystem::path> yaml_path;
   YAMLNode root;
+
+  template<typename OutT, typename OptT> OutT
+    get_or_default(const std::optional<OptT>& opt, OutT&& def_value) const noexcept {
+      if (opt) {
+        return opt.value();
+      }
+      return def_value;
+  }
 };

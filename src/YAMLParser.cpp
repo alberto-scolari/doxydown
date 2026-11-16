@@ -1,7 +1,7 @@
 #include "YAMLParser.hpp"
 
-#include <cstdio>
-#include <memory>
+#include <cstddef>
+#include <fstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -14,17 +14,29 @@ YAMLParser::~YAMLParser() {
   yaml_parser_delete(&parser);
 }
 
+static int ifstream_read_handler(void* data, unsigned char* buffer, size_t size, size_t* size_read) {
+    std::ifstream* stream = static_cast<std::ifstream*>(data);
+    if (stream == nullptr || stream->bad()) {
+      return 0; // error
+    }
+    stream->read(reinterpret_cast<char*>(buffer), static_cast<std::streamsize>(size));
+    if (stream->bad()) {
+      *size_read = 0;
+      return 0; // I/O error occurred during read()
+    }
+    *size_read = static_cast<size_t>(stream->gcount());
+    return 1; // success (returns 1 with *size_read = 0 on EOF)
+}
+
 YAMLNode YAMLParser::parse(const std::filesystem::path& filename) {
   YAMLNode root;
-  auto closer = [](std::FILE* file) { std::fclose(file); };
-  std::unique_ptr<FILE, decltype(closer)> file(std::fopen(filename.c_str(), "r"), closer);
-  if (not file) {
-    throw std::runtime_error("could not read YAML file " + filename.native());
+  std::ifstream file(filename, std::ios::binary);
+  if (not file.is_open()) {
+    throw std::runtime_error("could not read YAML file " + filename.string());
   }
-
-  yaml_parser_set_input_file(&parser, file.get());
+  yaml_parser_set_input(&parser, ifstream_read_handler, &file);
   bool done = false;
-  while (!done) {
+  while (not done) {
     if (!yaml_parser_parse(&parser, &event)) {
       throw std::runtime_error("YAML syntax error in file " +
           filename.string());
@@ -53,7 +65,7 @@ void YAMLParser::parseMapping(const std::filesystem::path& filename,
     /* read one name/value pair on each iteration */
     if (!yaml_parser_parse(&parser, &event)) {
       throw std::runtime_error("YAML syntax error in file " +
-          filename.native());
+          filename.string());
     }
     if (event.type == YAML_SCALAR_EVENT) {
       /* key */
@@ -65,7 +77,7 @@ void YAMLParser::parseMapping(const std::filesystem::path& filename,
       /* value */
       if (!yaml_parser_parse(&parser, &event)) {
         throw std::runtime_error("YAML syntax error in file " +
-            filename.native());
+            filename.string());
       }
       if (event.type == YAML_SCALAR_EVENT) {
         parseValue(filename, node.insert(std::move(key)));
@@ -91,7 +103,7 @@ void YAMLParser::parseSequence(const std::filesystem::path& filename,
   while (not done) {
     if (!yaml_parser_parse(&parser, &event)) {
       throw std::runtime_error("YAML syntax error in file " +
-          filename.native());
+          filename.string());
     }
     if (event.type == YAML_SCALAR_EVENT) {
       parseValue(filename, node.push());

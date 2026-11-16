@@ -69,9 +69,21 @@ public:
     return temp;
   }
 
-  friend constexpr bool operator==(const FwdListIterator<T>&, FwdListSentinel<T>);
+  friend constexpr bool operator==(const FwdListIterator& it, FwdListSentinel<T>) {
+      return it.node_ == nullptr;
+  }
 
-  friend constexpr bool operator!=(const FwdListIterator<T>&, FwdListSentinel<T>);
+  friend constexpr bool operator!=(const FwdListIterator& it, FwdListSentinel<T>) {
+      return it.node_ != nullptr;
+  }
+
+  friend constexpr bool operator==(FwdListSentinel<T> s, const FwdListIterator& it) {
+      return operator==(it, s);
+  }
+
+  friend constexpr bool operator!=(FwdListSentinel<T> s, const FwdListIterator& it) {
+      return operator!=(it, s);
+  }
 
   constexpr operator FwdRef<const T>() const noexcept {
     return FwdRef<const T>(node_->value);
@@ -97,22 +109,6 @@ private:
 
   NodePointer node_;
 };
-
-template<typename T> constexpr bool operator==(const FwdListIterator<T>& it, FwdListSentinel<T>) {
-    return it.node_ == nullptr;
-}
-
-template<typename T> constexpr bool operator!=(const FwdListIterator<T>& it, FwdListSentinel<T>) {
-    return it.node_ != nullptr;
-}
-
-template<typename T> constexpr bool operator==(FwdListSentinel<T>, const FwdListIterator<T>& it) {
-    return it.node_ == nullptr;
-}
-
-template<typename T> constexpr bool operator!=(FwdListSentinel<T>, const FwdListIterator<T>& it) {
-    return it.node_ != nullptr;
-}
 
 template<typename T> class FwdList {
 public:

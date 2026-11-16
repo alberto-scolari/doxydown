@@ -2,7 +2,7 @@
 
 #include "Log.hpp"
 
-StyleOption str_to_style_option(const std::string_view& style) {
+std::optional<StyleOption> str_to_style_option(const std::string_view& style) {
   if (style == "mkdocs") {
     return StyleOption::MKDOCS;
   } else if (style == "pandoc") {
@@ -11,19 +11,25 @@ StyleOption str_to_style_option(const std::string_view& style) {
     return StyleOption::PLAIN;
   }
   warn("unknown style '" << style << "', setting 'mkdocs'.");
-  return StyleOption::MKDOCS;
+  return {};
 }
 
 std::string_view style_option_to_str(StyleOption style) {
+  // verbose implementation to silence MSVC
+  std::string_view ret;
   switch (style) {
     case StyleOption::MKDOCS: {
-      return "mkdocs";
+      ret = "mkdocs";
+      break;
     }
     case StyleOption::PANDOCS: {
-      return "pandoc";
+      ret = "pandoc";
+      break;
     }
     case StyleOption::PLAIN: {
-      return "plain";
+      ret = "plain";
+      break;
     }
   }
+  return ret;
 }

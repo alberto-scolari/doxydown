@@ -16,6 +16,8 @@
 #include "VariableEntity.hpp"
 #include "TypedefEntity.hpp"
 
+#include <FileUtils.hpp>
+
 #include <filesystem>
 #include <format>
 #include <iterator>
@@ -285,7 +287,7 @@ public:
     template<entity ParentT, entity ChildT> requires container_of<ParentT, ChildT>
     void _add_to_parent(const FwdRef<ParentT>& parent, FwdRef<ChildT>& child) {
       if (not catalog) {
-        catalog = std::ref(registry.catalog[file]);
+        catalog = std::ref(registry.catalog[file.native()]);
       }
       EntityRegistry::file_catalog_t& cat = catalog.value().get();
       if constexpr (std::same_as<ParentT, RootEntity>) {
@@ -333,7 +335,7 @@ public:
     }
 
   public:
-    EntityFileInserter(std::string_view f, EntityRegistry& r): file(f), registry(r) {}
+    EntityFileInserter(const std::filesystem::path& f, EntityRegistry& r): file(f), registry(r) {}
 
     EntityFileInserter(const EntityFileInserter& other) = delete;
 
@@ -422,7 +424,7 @@ public:
     }
 
   private:
-    std::string_view file;
+    const std::filesystem::path& file;
     EntityRegistry& registry;
     std::optional<std::reference_wrapper<EntityRegistry::file_catalog_t>> catalog;
   };
@@ -439,10 +441,10 @@ public:
     }
     std::filesystem::path normalized = path.lexically_normal();
     FwdRef<FileEntity> fe = *file_entities.emplace_back(normalized, std::forward<decltype(args)>(args)...);
-    auto [it, newly_inserted] = files_map.try_emplace(fe->get_path(), fe);
+    auto [it, newly_inserted] = files_map.try_emplace(fe->get_path().native(), fe);
     if (not newly_inserted) {
       file_entities.erase(fe);
-      throw std::runtime_error(std::format("file \"{}\" is already inserted", normalized.native()));
+      throw std::runtime_error(std::format("file \"{}\" is already inserted", normalized));
     }
     return fe;
   }
@@ -552,8 +554,7 @@ public:
 
   void remove_file(const std::filesystem::path& file) {
     std::filesystem::path normalized = file.lexically_normal();
-    path_str_view filename{normalized.native()};
-    auto it  = catalog.find(filename);
+    auto it  = catalog.find(normalized);
     if (it == catalog.end()) {
       return;
     }
@@ -579,9 +580,9 @@ public:
     dispatcher.operator()<OperatorEntity>(cat);
     dispatcher.operator()<MacroEntity>(cat);
 
-    auto fit = files_map.find(filename);
+    auto fit = files_map.find(normalized);
     if (fit == files_map.end()) {
-      throw std::logic_error(std::format("file \"{}\" not present", filename));
+      throw std::logic_error(std::format("file \"{}\" not present", normalized));
     }
     file_entities.erase(fit->second);
     files_map.erase(fit);
@@ -617,14 +618,13 @@ private:
   FwdList<RootEntity> root;
 
   FwdList<FileEntity> file_entities;
-  std::unordered_map<path_str_view, FwdRef<FileEntity>> files_map;
+  path_unordered_map<path_str_view, FwdRef<FileEntity>> files_map;
 
   // nodes
   FwdList<GroupEntity> group_entities;
   // map: group name -> group entity
   std::unordered_map<std::string_view, FwdRef<GroupEntity>> name_group_map;
   std::unordered_map<FwdRef<GroupEntity>, std::vector<FwdRef<GroupEntity>>> group_hierarchy;
-
 
   entity_content<FwdList> code_entities;
 
@@ -635,5 +635,5 @@ private:
   entity_content<edges_map_t> code_edges;
   std::unordered_map<std::string_view, FwdRef<NamespaceEntity>> namespace_map;
 
-  std::unordered_map<path_str_view, file_catalog_t> catalog;
+  path_unordered_map<path_str_view, file_catalog_t> catalog;
 };

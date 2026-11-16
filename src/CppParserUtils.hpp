@@ -29,12 +29,12 @@ struct TextLineCoordinate {
     line = INVALID;
   }
 
-  constexpr void from_start(const TSNode& node) noexcept {
+  void from_start(const TSNode& node) noexcept {
     char_pos = ts_node_start_byte(node);
     line = ts_node_start_point(node).row;
   }
 
-  constexpr void from_end(const TSNode& node) noexcept {
+  void from_end(const TSNode& node) noexcept {
     char_pos = ts_node_end_byte(node);
     line = ts_node_end_point(node).row;
   }
@@ -50,7 +50,7 @@ struct TextLineCoordinate {
   }
 };
 
-static constexpr std::pair<uint32_t, uint32_t> from_decl_end(const TextLineCursor& str, uint32_t start, uint32_t end) {
+static std::pair<uint32_t, uint32_t> from_decl_end(const TextLineCursor& str, uint32_t start, uint32_t end) {
   uint32_t char_decr = 0, line_decr = 0;
   while(end > start && (
       std::isspace(str[end - 1])
@@ -69,7 +69,7 @@ static constexpr std::pair<uint32_t, uint32_t> from_decl_end(const TextLineCurso
   return std::make_pair(char_decr, line_decr);
 }
 
-static constexpr std::pair<uint32_t, uint32_t> from_decl_end(const TextLineCursor& str,
+static std::pair<uint32_t, uint32_t> from_decl_end(const TextLineCursor& str,
   const TextLineCoordinate& start, const TextLineCoordinate& end) {
   return from_decl_end(str, start.char_pos, end.char_pos);
 }
@@ -106,7 +106,7 @@ struct FieldLineCoordinates {
     return within(v.view());
   }
 
-  constexpr TextLineCursor cursor_within(const TextLineCursor& v) const {
+  TextLineCursor cursor_within(const TextLineCursor& v) const {
     return v.substr(start.char_pos, len());
   }
 };
@@ -254,7 +254,7 @@ struct tree_cursor_uptr: private TSTreeCursor {
 
   constexpr TSTreeCursor* operator&() { return this; }
 
-  constexpr ~tree_cursor_uptr() {
+  ~tree_cursor_uptr() {
     ts_tree_cursor_delete(this);
   }
 };

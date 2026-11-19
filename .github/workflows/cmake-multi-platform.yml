@@ -8,7 +8,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  test:
     strategy:
       # TODO: once stabilized, set fail-fast to true to ensure;
       # otherwise, feedback is delivered for all matrix combinations regardless
@@ -68,22 +68,44 @@ jobs:
       run: cmake --build --preset conan-debug --parallel
 
     - name: Unit test
+      # ctest --preset conan-debug --output-on-failure --output-junit "${{ github.workspace }}/unit-tests-${{ matrix.os }}.xml"
+      # call the test binary directly for faster (100x) execution: this way, the query
+      # parser is built only once
       run: |
         ./build/Debug/doxydown --version
-        ctest --preset conan-debug --output-on-failure --output-junit "${{ github.workspace }}/${{ matrix.os }}-unit-tests.xml"
+        ./build/Debug/doxydown_tests --gtest_output=xml:${{ github.workspace }}/unit-tests-${{ matrix.os }}.xml
 
-    - name: Publish unit tests results
-      uses: EnricoMi/publish-unit-test-result-action/composite@v2
-      if: always()
+    - name: Publish Test Results (Linux)
+      if: always() && runner.os == 'Linux'
+      uses: EnricoMi/publish-unit-test-result-action/linux@v2
       with:
-        check_name: Test Results for ${{ matrix.os }}
-        files: ${{ github.workspace }}/${{ matrix.os }}-unit-tests.xml
-        comment_mode: off
+        check_name: Unit Test Results for ${{ matrix.os }}
+        files: unit-tests-${{ matrix.os }}.xml
+        comment_mode: "off"
+
+    # EnricoMi/publish-unit-test-result-action/* actions are per-OS, so write
+    # one step for each OS and enable it only if it runs on the actual OS;
+    # GH doe snot allow using variables in `uses` clauses
+    - name: Publish Test Results (macOS)
+      if: always() && runner.os == 'macOS'
+      uses: EnricoMi/publish-unit-test-result-action/macos@v2
+      with:
+        check_name: Unit Test Results for ${{ matrix.os }}
+        files: unit-tests-${{ matrix.os }}.xml
+        comment_mode: "off"
+
+    - name: Publish Test Results (Windows)
+      if: always() && runner.os == 'Windows'
+      uses: EnricoMi/publish-unit-test-result-action/windows@v2
+      with:
+        check_name: Unit Test Results for ${{ matrix.os }}
+        files: unit-tests-${{ matrix.os }}.xml
+        comment_mode: "off"
 
     - name: Upload JUnit XML
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        path: ${{ github.workspace }}/${{ matrix.os }}-unit-tests.xml
-        name: ${{ matrix.os }}-unit-tests.xml
+        path: ${{ github.workspace }}/unit-tests-${{ matrix.os }}.xml
+        name: unit-tests-${{ matrix.os }}
         retention-days: 14

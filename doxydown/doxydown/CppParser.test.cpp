@@ -10,6 +10,8 @@
 #include <doxydown/StyleOption.hpp>
 #include <doxydown/entities/EntityRegistry.hpp>
 
+#include <tests/utils.hpp>
+
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -18,7 +20,6 @@
 #include <fstream>
 #include <optional>
 #include <random>
-#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -28,15 +29,6 @@
 namespace fs = std::filesystem;
 
 namespace {
-
-/** Copy the entities of a registry children view into a vector. */
-template<std::ranges::input_range V> auto collect(V&& view) {
-  std::vector<std::ranges::range_value_t<V>> result;
-  for (auto&& e : view) {
-    result.push_back(e);
-  }
-  return result;
-}
 
 /**
  * Registry and parser shared by all tests: building a CppParser compiles the
@@ -63,13 +55,14 @@ protected:
 
   EntityRegistry& registry = SharedParser::get().registry;
   CppParser* parser = &SharedParser::get().parser;
+  static std::atomic<unsigned> counter;
   fs::path dir;
 
   void SetUp() override {
     registry.clear();
     registry.add_group("parsing", "Parsing", "Parsing group.");
     registry.add_group("presentation", "Presentation", "Presentation group.");
-    static std::atomic<unsigned> counter{0};
+    // static std::atomic<unsigned> counter{0};
     std::random_device rd;
     dir = fs::temp_directory_path() /
       ("doxydown_cppparser_test_" + std::to_string(rd()) + "_" + std::to_string(counter++));
@@ -116,15 +109,15 @@ protected:
     return *g;
   }
 
-  auto types(const RefVariant& p) { return collect(registry.get_type_children_for(p)); }
-  auto functions(const RefVariant& p) { return collect(registry.get_function_children_for(p)); }
-  auto variables(const RefVariant& p) { return collect(registry.get_variable_children_for(p)); }
-  auto enums(const RefVariant& p) { return collect(registry.get_enum_children_for(p)); }
-  auto namespaces(const RefVariant& p) { return collect(registry.get_namespace_children_for(p)); }
-  auto typedefs(const RefVariant& p) { return collect(registry.get_typedef_children_for(p)); }
-  auto concepts(const RefVariant& p) { return collect(registry.get_concept_children_for(p)); }
-  auto operators(const RefVariant& p) { return collect(registry.get_operator_children_for(p)); }
-  auto macros(const RefVariant& p) { return collect(registry.get_macro_children_for(p)); }
+  auto types(const RefVariant& p) { return registry.get_type_children_for(p) | to_vector; }
+  auto functions(const RefVariant& p) { return registry.get_function_children_for(p) | to_vector; }
+  auto variables(const RefVariant& p) { return registry.get_variable_children_for(p) | to_vector; }
+  auto enums(const RefVariant& p) { return registry.get_enum_children_for(p) | to_vector; }
+  auto namespaces(const RefVariant& p) { return registry.get_namespace_children_for(p) | to_vector; }
+  auto typedefs(const RefVariant& p) { return registry.get_typedef_children_for(p) | to_vector; }
+  auto concepts(const RefVariant& p) { return registry.get_concept_children_for(p) | to_vector; }
+  auto operators(const RefVariant& p) { return registry.get_operator_children_for(p) | to_vector; }
+  auto macros(const RefVariant& p) { return registry.get_macro_children_for(p) | to_vector; }
   // TODO(lambdas): re-enable together with the lambda tests below
   // auto lambdas(const RefVariant& p) { return collect(registry.get_lambda_children_for(p)); }
 
@@ -145,6 +138,9 @@ protected:
       // TODO(lambdas): + lambdas(root()).size();
   }
 };
+
+std::atomic<unsigned> CppParserTestBase::counter{0};
+
 
 class CppParserTest : public CppParserTestBase {};
 
@@ -230,7 +226,7 @@ struct DeclCase {
   const char* decl;
 };
 
-void PrintTo(const DeclCase& c, std::ostream* os) { *os << c.label; }
+// void PrintTo(const DeclCase& c, std::ostream* os) { *os << c.label; }
 
 std::string case_name(const ::testing::TestParamInfo<DeclCase>& info) {
   return info.param.label;
@@ -324,7 +320,7 @@ struct TemplateDeclCase {
   uint32_t end_line; // line relative to the entity start (its `template<...>` header, if any)
 };
 
-void PrintTo(const TemplateDeclCase& c, std::ostream* os) { *os << c.label; }
+// void PrintTo(const TemplateDeclCase& c, std::ostream* os) { *os << c.label; }
 
 std::string tcase_name(const ::testing::TestParamInfo<TemplateDeclCase>& info) {
   return info.param.label;
@@ -1110,6 +1106,55 @@ TEST_F(CppParserTest, ForwardAndBackwardCommentsOnConsecutiveEntities) {
 TEST_F(CppParserTest, ForwardCommentLineDoesNotAffectEntityStartLine) {
   parse("/**\n * Doc.\n */\nint a;\n");
   EXPECT_EQ(only_root_variable()->get_start_line(), 3u);
+}
+
+TEST_F(CppParserTest, ForwardAndBackwardCommentsForwardIsChosen) {
+  std::string_view code = R""""(
+/**
+ * The Doc.
+ */
+int aaa; //< The Back Doc.
+)"""";
+  parse(code);
+  EXPECT_EQ(only_root_variable()->get_name(), "aaa");
+  EXPECT_EQ(only_root_variable()->get_docs(), "The Doc.\n");
+}
+
+// this is a disputable choice: giving priority **always** to the forward
+// doc; we may in future decide to prioritize the closest doc.
+TEST_F(CppParserTest, DistantForwardAndBackwardCommentsForwardIsChosen) {
+  std::string_view code = R""""(
+/**
+ * The Doc 1.
+ */
+
+
+
+int aaa; //< The Back Doc.
+)"""";
+  parse(code);
+  EXPECT_EQ(only_root_variable()->get_name(), "aaa");
+  EXPECT_EQ(only_root_variable()->get_docs(), "The Doc 1.\n");
+}
+
+TEST_F(CppParserTest, MultipleForwardDocLastIsChosen) {
+  std::string_view code = R""""(
+/**
+ * The Doc 1.
+ */
+
+/**
+ * The Doc 2.
+ */
+
+///
+/// The Doc 3.
+///
+int aaa; //< The Back Doc.
+)"""";
+  parse(code);
+  EXPECT_EQ(only_root_variable()->get_name(), "aaa");
+  EXPECT_EQ(only_root_variable()->get_docs(), "The Doc 3.\n");
 }
 
 // ---------------------------------------------------------------------------

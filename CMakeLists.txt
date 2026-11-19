@@ -84,6 +84,7 @@ add_library(doxydown_core STATIC
   doxydown/doxydown/generation/MdCoverageGenerator.cpp
   doxydown/doxydown/generation/Sanitize.cpp
 )
+
 target_include_directories(doxydown_core
   PUBLIC doxydown ${CMAKE_BINARY_DIR}/generated
 )

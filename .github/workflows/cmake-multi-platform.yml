@@ -70,20 +70,20 @@ jobs:
     - name: Unit test
       run: |
         ./build/Debug/doxydown --version
-        ctest --preset conan-debug --output-on-failure --output-junit ${{ matrix.os }}-unit-tests.xml
+        ctest --preset conan-debug --output-on-failure --output-junit "${{ github.workspace }}/${{ matrix.os }}-unit-tests.xml"
 
     - name: Publish unit tests results
       uses: EnricoMi/publish-unit-test-result-action/composite@v2
       if: always()
       with:
         check_name: Test Results for ${{ matrix.os }}
-        files: build/Debug/${{ matrix.os }}-unit-tests.xml
+        files: ${{ github.workspace }}/${{ matrix.os }}-unit-tests.xml
         comment_mode: off
 
     - name: Upload JUnit XML
       uses: actions/upload-artifact@v4
       if: always()
       with:
+        path: ${{ github.workspace }}/${{ matrix.os }}-unit-tests.xml
         name: ${{ matrix.os }}-unit-tests.xml
-        path: build/Debug/${{ matrix.os }}-unit-tests.xml
         retention-days: 14

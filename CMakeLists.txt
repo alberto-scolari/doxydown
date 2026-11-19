@@ -20,13 +20,14 @@ find_package(p-ranav-glob REQUIRED)
 
 try_compile(COMPILE_RESULT
   SOURCES ${PROJECT_SOURCE_DIR}/cmake/extract_ts_ids.cpp
-  CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${PROJECT_SOURCE_DIR}/src;${inc_dirs}"
+  CMAKE_FLAGS
+    "-DINCLUDE_DIRECTORIES=${PROJECT_SOURCE_DIR}/doxydown/doxydown"
   LINK_LIBRARIES tree-sitter-cuda::tree-sitter-cuda
   CXX_STANDARD 20
   CXX_STANDARD_REQUIRED TRUE
   OUTPUT_VARIABLE COMPILE_LOG
   COPY_FILE
-    "${CMAKE_BINARY_DIR}/generate/extract_ts_ids${CMAKE_EXECUTABLE_SUFFIX}"
+    "${CMAKE_BINARY_DIR}/generated/extract_ts_ids${CMAKE_EXECUTABLE_SUFFIX}"
 )
 if(NOT COMPILE_RESULT)
   message(FATAL_ERROR "Compilation failed with code '${COMPILE_RESULT}'"
@@ -36,7 +37,7 @@ endif()
 foreach(VAR IN ITEMS QueryCppNodes QueryCppExcludeNodes QueryCppIncludeNodes)
   execute_process(
     COMMAND
-      "${CMAKE_BINARY_DIR}/generate/extract_ts_ids${CMAKE_EXECUTABLE_SUFFIX}"
+      "${CMAKE_BINARY_DIR}/generated/extract_ts_ids${CMAKE_EXECUTABLE_SUFFIX}"
         ${VAR}
     RESULT_VARIABLE RUN_RESULT
     OUTPUT_VARIABLE ${VAR}_Code
@@ -48,40 +49,42 @@ foreach(VAR IN ITEMS QueryCppNodes QueryCppExcludeNodes QueryCppIncludeNodes)
 endforeach()
 
 configure_file(
-  ${CMAKE_SOURCE_DIR}/src/cpp_query_enums.hpp.in
-  ${CMAKE_BINARY_DIR}/src/generated/cpp_query_enums.hpp
+  ${CMAKE_SOURCE_DIR}/doxydown/doxydown/cpp_query_enums.hpp.in
+  ${CMAKE_BINARY_DIR}/generated/doxydown/config/cpp_query_enums.hpp
 )
 configure_file(
-  ${CMAKE_SOURCE_DIR}/src/config.h.in
-  ${CMAKE_BINARY_DIR}/src/generated/config.h
+  ${CMAKE_SOURCE_DIR}/doxydown/doxydown/config.h.in
+  ${CMAKE_BINARY_DIR}/generated/doxydown/config/config.h
 )
 
 add_executable(doxydown
-  src/doxydown.cpp
-  src/CppParser.cpp
-  src/Driver.cpp
-  src/DriverConfigParser.cpp
-  src/FileSystemDeleter.cpp
-  src/FileSystemStatsInfo.cpp
-  src/FileUtils.cpp
-  src/GcovCounter.cpp
-  src/JSONCounter.cpp
-  src/JSONGenerator.cpp
-  src/SourceWatcher.cpp
-  src/StyleOption.cpp
-  src/TextLineCursor.cpp
-  src/Utils.cpp
-  src/YAMLNode.cpp
-  src/YAMLParser.cpp
-  src/doc_parser/DocToken.cpp
-  src/doc_parser/DocTokenizer.cpp
-  src/doc_parser/StyleParsers.cpp
-  src/generation/DocRenderers.cpp
-  src/generation/MarkdownGenerator.cpp
-  src/generation/MdCoverageGenerator.cpp
-  src/generation/Sanitize.cpp
+  doxydown/doxydown/doxydown.cpp
+  doxydown/doxydown/CppParser.cpp
+  doxydown/doxydown/Driver.cpp
+  doxydown/doxydown/DriverConfigParser.cpp
+  doxydown/doxydown/FileSystemDeleter.cpp
+  doxydown/doxydown/FileSystemStatsInfo.cpp
+  doxydown/doxydown/FileUtils.cpp
+  doxydown/doxydown/GcovCounter.cpp
+  doxydown/doxydown/JSONCounter.cpp
+  doxydown/doxydown/JSONGenerator.cpp
+  doxydown/doxydown/SourceWatcher.cpp
+  doxydown/doxydown/StyleOption.cpp
+  doxydown/doxydown/TextLineCursor.cpp
+  doxydown/doxydown/Utils.cpp
+  doxydown/doxydown/YAMLNode.cpp
+  doxydown/doxydown/YAMLParser.cpp
+  doxydown/doxydown/doc_parser/DocToken.cpp
+  doxydown/doxydown/doc_parser/DocTokenizer.cpp
+  doxydown/doxydown/doc_parser/StyleParsers.cpp
+  doxydown/doxydown/generation/DocRenderers.cpp
+  doxydown/doxydown/generation/MarkdownGenerator.cpp
+  doxydown/doxydown/generation/MdCoverageGenerator.cpp
+  doxydown/doxydown/generation/Sanitize.cpp
 )
-target_include_directories(doxydown PRIVATE src ${CMAKE_BINARY_DIR}/src)
+target_include_directories(doxydown
+  PRIVATE doxydown ${CMAKE_BINARY_DIR}/generated
+)
 
 target_link_libraries(doxydown
   yaml tree-sitter-cuda::tree-sitter-cuda

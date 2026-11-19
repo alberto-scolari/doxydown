@@ -115,3 +115,9 @@ mkdocs serve
 ```
 
 and point your browser to `localhost:8000`.
+
+
+## Code structure
+
+This project follows the [Canonical Project Structure](https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p1204r0.html).
+This allows include statements to be all under `doxydown/`.

@@ -4,7 +4,7 @@ description: |
     a test corpus. They are generated from the source files in the
     [demo](https://github.com/alberto-scolari/doxydown/tree/main/demo) directory of
     the repository, as well as from the source code of Doxydown itself. This
-    first page demonstrates how [groups](../organizing) can be used to
+    first page demonstrates how groups can be used to
     organize documentation.
 files:
   - "src/**.hpp"

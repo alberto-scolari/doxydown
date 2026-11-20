@@ -104,9 +104,10 @@ if(DOXYDOWN_BUILD_TESTS)
   # unit tests live next to the sources they test, as <Source>.test.cpp
   set(DOXYDOWN_TEST_SOURCES
     "${PROJECT_SOURCE_DIR}/doxydown/doxydown/CppParser.test.cpp"
+    "${PROJECT_SOURCE_DIR}/doxydown/doxydown/doc_parser/StyleParsers.test.cpp"
   )
   add_executable(doxydown_tests ${DOXYDOWN_TEST_SOURCES})
-  target_link_libraries(doxydown_tests PRIVATE doxydown_core GTest::gtest_main)
+  target_link_libraries(doxydown_tests PRIVATE doxydown_core GTest::gmock GTest::gtest_main)
   target_compile_definitions(doxydown_tests PRIVATE
     DOXYDOWN_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
   )

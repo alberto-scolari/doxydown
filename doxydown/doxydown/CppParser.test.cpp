@@ -205,6 +205,18 @@ TEST_F(CppParserTest, EntityRemembersItsFile) {
   EXPECT_EQ(only_root_variable()->get_path(), file->get_path());
 }
 
+TEST_F(CppParserTest, PipeCommentsAreNotDocumentation) {
+  // `|` is not a Doxygen marker: these are ordinary comments
+  parse("int plain;\n/*| Not docs. */\nint a;\n//| Not docs.\nint b;\n"
+    "int c; /*|< Not docs. */\nint d; //|< Not docs.\n");
+  auto vars = variables(root());
+  ASSERT_EQ(vars.size(), 5u);
+  for (const auto& v : vars) {
+    SCOPED_TRACE(std::string(v->get_name()));
+    EXPECT_EQ(v->get_docs(), vars[0]->get_docs());
+  }
+}
+
 TEST_F(CppParserTest, ParseErrorStillParsesValidEntities) {
   parse("/** A. */\nint a;\n@@@ garbage $$$\n/** B. */\nint b;\n");
   auto vars = variables(root());

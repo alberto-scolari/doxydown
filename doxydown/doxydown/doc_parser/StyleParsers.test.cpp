@@ -140,6 +140,9 @@ const FormCase FORM_CASES[] = {
     {"@note", "Body line", "second.", "", "After."},
     "\n!!! note\n    Body line\n    second.\n\nAfter.\n"},
   {"IngroupIsRemovedFromDocs", {"@ingroup grp", "Text."}, "\nText.\n"},
+  {"ListItems",
+    {"Items:", "@li One.", "@arg Two.", "", "After."},
+    "Items:\n\n- One.\n- Two.\n\nAfter.\n"},
 };
 
 struct FormAndCase {
@@ -417,6 +420,86 @@ TEST(StyleParsersCommands, Anchor) {
 
 TEST(StyleParsersCommands, Ref) {
   EXPECT_EQ(docs_of("/** See @ref target text. */"), "See [text.](#target)\n");
+}
+
+/*
+ * List items
+ */
+
+class ListItemTest : public ::testing::TestWithParam<const char*> {};
+
+TEST_P(ListItemTest, KeepsItsText) {
+  EXPECT_EQ(docs_of(std::string("/** @") + GetParam() + " item */"), "- item\n");
+}
+
+TEST_P(ListItemTest, SeveralItemsOnSeparateLines) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/// " + li + " one\n/// " + li + " two\n/// " + li + " three"),
+    "- one\n- two\n- three\n");
+}
+
+TEST_P(ListItemTest, SeveralItemsOnTheSameLine) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/** " + li + " one " + li + " two */"), "- one \n- two\n");
+}
+
+TEST_P(ListItemTest, FirstItemIsSeparatedFromPrecedingText) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/// Items:\n/// " + li + " one\n/// " + li + " two"),
+    "Items:\n\n- one\n- two\n");
+  EXPECT_EQ(docs_of("/** Items: " + li + " one " + li + " two */"),
+    "Items: \n\n- one \n- two\n");
+}
+
+TEST_P(ListItemTest, NoExtraEmptyLineAfterParagraphBreak) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/**\n * Items:\n *\n * " + li + " one\n * " + li + " two\n */"),
+    "Items:\n\n- one\n- two\n");
+}
+
+TEST_P(ListItemTest, ParagraphBreakEndsTheList) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/// " + li + " one\n///\n/// Text.\n/// " + li + " two"),
+    "- one\n\nText.\n\n- two\n");
+}
+
+TEST_P(ListItemTest, ItemTextSpanningLines) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/// " + li + " one\n/// continued\n/// " + li + " two"),
+    "- one\ncontinued\n- two\n");
+}
+
+TEST_P(ListItemTest, ItemStartingWithInlineCommand) {
+  EXPECT_EQ(docs_of(std::string("/** @") + GetParam() + " @c x value */"), "- `x` value\n");
+}
+
+TEST_P(ListItemTest, InsideAdmonition) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/**\n * @note\n * Items:\n * " + li + " one\n * " + li + " two\n */"),
+    "\n!!! note\n    Items:\n    \n    - one\n    - two\n");
+}
+
+TEST_P(ListItemTest, AsAdmonitionBody) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/// @note " + li + " one\n/// " + li + " two"),
+    "\n!!! note\n    \n    - one\n    - two\n");
+}
+
+TEST_P(ListItemTest, InsideParam) {
+  const std::string li = std::string("@") + GetParam();
+  EXPECT_EQ(docs_of("/// @param x Values:\n/// " + li + " one\n/// " + li + " two"),
+    "\n:material-location-enter: `x`\n:    Values:\n    \n    - one\n    - two\n");
+}
+
+INSTANTIATE_TEST_SUITE_P(MkDocs, ListItemTest, ::testing::Values("li", "arg"));
+
+TEST(StyleParsersOtherStyles, ListItemKeepsItsText) {
+  // the list item handling is shared by all styles
+  const std::string comment = "/// Items:\n/// @li one\n/// @li two";
+  EXPECT_EQ(make_doc_parser(StyleOption::PANDOCS)->parse(TextLineCursor(comment)).docs,
+    "Items:\n\n- one\n- two\n");
+  EXPECT_EQ(make_doc_parser(StyleOption::PLAIN)->parse(TextLineCursor(comment)).docs,
+    "Items:\n\n- one\n- two\n");
 }
 
 /*
@@ -743,12 +826,6 @@ INSTANTIATE_TEST_SUITE_P(MkDocs, AnnotationsDemoTest, ::testing::ValuesIn(FORMS)
  * Known defects: these tests describe the expected behavior and are disabled
  * until the parser is fixed.
  */
-
-TEST(StyleParsersKnownDefects, DISABLED_ListItemKeepsItsText) {
-  // the word following @li / @arg is consumed and dropped
-  EXPECT_THAT(docs_of("/** @li item */"), HasSubstr("item"));
-  EXPECT_THAT(docs_of("/** @arg item */"), HasSubstr("item"));
-}
 
 TEST(StyleParsersKnownDefects, DISABLED_RefWithoutTextUsesTarget) {
   EXPECT_EQ(docs_of("/** @ref target */"), "[target](#target)\n");

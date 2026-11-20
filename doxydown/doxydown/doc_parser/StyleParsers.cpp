@@ -215,8 +215,35 @@ public:
     /* is the output at the start of a line, possibly after its indentation? */
     bool line_start = true;
 
+    /* is the output at the start of the docs or after an empty line? */
+    bool after_blank = true;
+
     /* are we inside a code block? */
     bool in_code = false;
+
+    /* are we inside a list started by @li or @arg? */
+    bool in_list = false;
+
+    /* each list item starts on its own line, at the current indentation; the
+     * first item of a list is preceded by an empty line, as Markdown requires
+     * to separate a list from the preceding paragraph */
+    auto start_list_item = [&]() {
+      if (!line_start) {
+        sink.println();
+        style.add_indent(indent);
+      }
+      if (!in_list and !after_blank) {
+        sink.println();
+        style.add_indent(indent);
+      }
+      sink.print("- ");
+      in_list = true;
+      /* drop the spaces between the command and the text of the item */
+      DocTokenizer after_command = tokenizer;
+      if (!(tokenizer.next().type & WHITESPACE)) {
+        tokenizer = after_command;
+      }
+    };
 
     /* code fences take the current indentation, so that code blocks stay
      * inside the enclosing admonition or section */
@@ -352,7 +379,7 @@ public:
           sink.print("$$", tokenizer.consume(WORD).view());
         } else if (command == "li" ||
             command == "arg") {
-          sink.print("  - ", tokenizer.consume(WORD).view());
+          start_list_item();
         } else if (command == "ref") {
           auto href = tokenizer.consume(WORD).view();
           auto text = tokenizer.consume(WORD).view();
@@ -432,10 +459,17 @@ public:
         style.add_indent(first * indent);  // indent on first token
         sink.print("{}", token.view());
       }
-      if (token.type & (LINE | PARA)) {
+      if (token.type & PARA) {
         line_start = true;
+        after_blank = true;
+        /* an empty line ends the list */
+        in_list = in_list and in_code;
+      } else if (token.type & LINE) {
+        line_start = true;
+        after_blank = after_blank and first;  // the first line break prints nothing
       } else if (!(token.type & WHITESPACE)) {
         line_start = false;
+        after_blank = false;
       }
       token = tokenizer.next();
       first = false;

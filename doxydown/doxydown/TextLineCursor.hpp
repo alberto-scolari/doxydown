@@ -114,11 +114,6 @@ public:
    */
   void advance(std::size_t length);
 
-  /**
-   * Clears the current cursor.
-   */
-  void clear() noexcept;
-
 private:
   std::string_view _data;
   std::size_t _line_num;

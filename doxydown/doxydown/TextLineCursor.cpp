@@ -13,11 +13,6 @@ void TextLineCursor::advance(std::size_t length) {
   _data = _data.substr(length);
 }
 
-void TextLineCursor::clear() noexcept {
-  _data = std::string_view();
-  _line_num = 0;
-}
-
 void TextLineCursor::check_start(const_iterator start) const {
   if (start < cbegin()) {
     throw std::out_of_range("start is before beginning");

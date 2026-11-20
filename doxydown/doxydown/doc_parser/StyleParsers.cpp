@@ -209,7 +209,7 @@ public:
 
     /* indent the continuation lines of the section just started; @param and
      * @param[in] always do it, regardless of the style */
-    auto indent_section = [&indent]() {
+    auto indent_section = [&]() {
       if constexpr (Style::indent_sections) {
         indent = 4;
       }
@@ -217,7 +217,7 @@ public:
 
     /* an admonition was just opened and its body has not started yet */
     bool body_pending = false;
-    auto start_admonition = [&indent, &body_pending]() {
+    auto start_admonition = [&]() {
       indent += 4;
       if constexpr (Style::admonition_body_on_new_line) {
         body_pending = true;

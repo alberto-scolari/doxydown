@@ -124,7 +124,7 @@ std::stack<CppParser::StackEntry>::reference CppParser::push(RefVariant ref, uin
 static const std::regex comment_regex(
   R"(^\s*)" // beginning of string, than any whitespace (ignore)
   R"((?:)"  // start of non-capturing group
-  R"((\/\*[\*!])(?!<))" // (1) opening comment /** or /*!
+  R"((\/\*(?:\*(?!\/)|!))(?!<))" // (1) opening comment /** or /*! (but not the empty /**/)
   R"(|)"
   R"((\/\/\/)(?!<))" // (2) line continuation comment /// (without <)
   R"(|)"

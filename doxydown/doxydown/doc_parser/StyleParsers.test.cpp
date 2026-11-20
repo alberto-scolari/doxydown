@@ -307,6 +307,8 @@ INSTANTIATE_TEST_SUITE_P(MkDocs, NotADocCommentTest, ::testing::Values(
   "/*| Not a Doxygen marker. */",
   "//|< Not a Doxygen marker.",
   "/*|< Not a Doxygen marker. */",
+  "/**/",
+  "/**/ Text after an empty comment.",
   "Text outside a comment.",
   "  /// Leading whitespace is not part of the comment.",
   ""));
@@ -617,11 +619,6 @@ INSTANTIATE_TEST_SUITE_P(MkDocs, AnnotationsDemoTest, ::testing::ValuesIn(FORMS)
  * Known defects: these tests describe the expected behavior and are disabled
  * until the parser is fixed.
  */
-
-TEST(StyleParsersKnownDefects, DISABLED_EmptyBlockCommentProducesNoDocs) {
-  // `/**/` is an empty ordinary comment, the closing `/` leaks into the docs
-  EXPECT_EQ(docs_of("/**/"), "\n");
-}
 
 TEST(StyleParsersKnownDefects, DISABLED_ListItemKeepsItsText) {
   // the word following @li / @arg is consumed and dropped

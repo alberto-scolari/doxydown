@@ -16,7 +16,8 @@ DocTokenizer::DocTokenizer(const TextLineCursor& src): source(src) {}
  */
 static auto regexes = {
   std::make_pair(OPEN_AFTER, std::regex("(?://[/!]|/\\*[\\*!])<[ \\t]?", REGEX_FLAGS)),
-  std::make_pair(OPEN_BEFORE, std::regex("(?://[/!]|/\\*[\\*!])[ \\t]?", REGEX_FLAGS)),
+  // `/**/` is an empty ordinary comment, not the opening of a doc comment
+  std::make_pair(OPEN_BEFORE, std::regex("(?://[/!]|/\\*(?:\\*(?!/)|!))[ \\t]?", REGEX_FLAGS)),
   std::make_pair(CLOSE, std::regex("\\*/", REGEX_FLAGS)),
   std::make_pair(COMMAND, std::regex("[@\\\\](?:param(?:\\[(?:in|out|in,out)\\])?|\\w+|@|\\\\|/|f[\\$\\[\\]])", REGEX_FLAGS)),
 

@@ -217,6 +217,19 @@ TEST_F(CppParserTest, PipeCommentsAreNotDocumentation) {
   }
 }
 
+TEST_F(CppParserTest, EmptyBlockCommentIsNotDocumentation) {
+  // `/**/` is an empty ordinary comment, while `/***/` is an empty doc comment
+  parse("int plain;\n/**/\nint a;\nint b; /**/\n/***/\nint c;\n");
+  auto vars = variables(root());
+  ASSERT_EQ(vars.size(), 4u);
+  EXPECT_EQ(vars[1]->get_name(), "a");
+  EXPECT_EQ(vars[1]->get_docs(), vars[0]->get_docs());
+  EXPECT_EQ(vars[2]->get_name(), "b");
+  EXPECT_EQ(vars[2]->get_docs(), vars[0]->get_docs());
+  EXPECT_EQ(vars[3]->get_name(), "c");
+  EXPECT_EQ(vars[3]->get_docs(), "\n");
+}
+
 TEST_F(CppParserTest, ParseErrorStillParsesValidEntities) {
   parse("/** A. */\nint a;\n@@@ garbage $$$\n/** B. */\nint b;\n");
   auto vars = variables(root());

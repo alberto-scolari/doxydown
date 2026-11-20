@@ -331,6 +331,32 @@ TEST(StyleParsersCommands, ParamDescriptionOnNextLine) {
     "\n:material-location-enter: `x`\n:   \n     X.\n");
 }
 
+class SectionContinuationTest : public ::testing::TestWithParam<const char*> {};
+
+TEST_P(SectionContinuationTest, ContinuationLineIsIndented) {
+  const std::string docs = docs_of(std::string("/// @") + GetParam() + " First line\n/// second line.");
+  EXPECT_THAT(docs, HasSubstr("First line\n    second line.\n"));
+}
+
+TEST_P(SectionContinuationTest, ParagraphBreakEndsSection) {
+  const std::string docs = docs_of(std::string("/**\n * @") + GetParam()
+    + " Description.\n *\n * After.\n */");
+  EXPECT_THAT(docs, HasSubstr("Description.\n\nAfter.\n"));
+}
+
+INSTANTIATE_TEST_SUITE_P(MkDocs, SectionContinuationTest, ::testing::Values(
+  "param x", "param[in] x", "param[out] x", "param[in,out] x", "tparam T",
+  "return", "returns", "result", "pre", "post", "throw", "see", "sa"));
+
+TEST(StyleParsersOtherStyles, SectionContinuationIsNotIndented) {
+  // only MkDocs indents continuation lines of sections other than @param
+  const std::string comment = "/// @return First\n/// second.";
+  EXPECT_EQ(make_doc_parser(StyleOption::PANDOCS)->parse(TextLineCursor(comment)).docs,
+    "\nReturn\n:    First\nsecond.\n");
+  EXPECT_EQ(make_doc_parser(StyleOption::PLAIN)->parse(TextLineCursor(comment)).docs,
+    "\n\n  - **Return**\n\n\n     First\nsecond.\n");
+}
+
 TEST(StyleParsersCommands, Sections) {
   EXPECT_EQ(docs_of("/** @pre P. @post Q. @throw E. @see F. @sa G. */"),
     "\n:material-check-circle-outline: **Pre-condition**\n:    P. "
@@ -349,7 +375,7 @@ TEST(StyleParsersCommands, ReturnSynonyms) {
 
 TEST(StyleParsersCommands, SectionsOnSeparateLines) {
   EXPECT_EQ(docs_of("/// @pre P.\n/// @post Q."),
-    "\n:material-check-circle-outline: **Pre-condition**\n:    P.\n"
+    "\n:material-check-circle-outline: **Pre-condition**\n:    P.\n    "
     "\n:material-check-circle-outline: **Post-condition**\n:    Q.\n");
 }
 
@@ -591,10 +617,10 @@ const std::string ANNOTATIONS_DEMO_DOCS =
   "\n"
   ":material-check-circle-outline: **Pre-condition**\n"
   ":    Pre-condition.\n"
-  "\n"
+  "    \n"
   ":material-check-circle-outline: **Post-condition**\n"
   ":    Post-condition.\n"
-  "\n"
+  "    \n"
   ":material-alert-circle-outline: **Throw**\n"
   ":    Exception.\n"
   "\n"
@@ -639,16 +665,5 @@ TEST(StyleParsersKnownDefects, DISABLED_LegacyAdmonitionWithInlineTextIsIndented
   EXPECT_EQ(docs_of("/** @todo T. */"), "\n!!! example \"To-do\"\n    T.\n");
   EXPECT_EQ(docs_of("/** @remark R. */"), "\n!!! quote \"Remark\"\n    R.\n");
 }
-
-class ContinuationIndentDefectTest : public ::testing::TestWithParam<const char*> {};
-
-TEST_P(ContinuationIndentDefectTest, DISABLED_ContinuationLineIsIndented) {
-  // only @param / @param[in] set the indentation for continuation lines
-  const std::string docs = docs_of(std::string("/// @") + GetParam() + " First line\n/// second line.");
-  EXPECT_THAT(docs, HasSubstr("First line\n    second line.\n"));
-}
-
-INSTANTIATE_TEST_SUITE_P(MkDocs, ContinuationIndentDefectTest, ::testing::Values(
-  "param[out] x", "param[in,out] x", "tparam T", "return", "pre", "post", "throw", "see"));
 
 }  // namespace

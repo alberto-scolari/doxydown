@@ -25,6 +25,10 @@ using ossink_t = _sink_t<std::ostringstream, std::ostreambuf_iterator<char>>;
 struct MkDocsStyle {
   ossink_t &sink;
 
+  /* continuation lines of a section (@param, @return, etc.) are indented to
+   * belong to its definition-list item */
+  static constexpr bool indent_sections = true;
+
   void end_of_paragraph() {}
 
   void param_in(std::string_view word) {
@@ -70,6 +74,8 @@ struct MkDocsStyle {
 
 struct PandocStyle {
   ossink_t &sink;
+
+  static constexpr bool indent_sections = false;
 
   void end_of_paragraph() {
     sink.print("\n:::");
@@ -117,6 +123,8 @@ struct PandocStyle {
 
 struct PlainStyle {
   ossink_t sink;
+
+  static constexpr bool indent_sections = false;
 
   void end_of_paragraph() {}
 
@@ -179,6 +187,14 @@ public:
     Style style(sink);
     TextLineCursor ingroup;
 
+    /* indent the continuation lines of the section just started; @param and
+     * @param[in] always do it, regardless of the style */
+    auto indent_section = [&indent]() {
+      if constexpr (Style::indent_sections) {
+        indent = 4;
+      }
+    };
+
     if (open.type != OPEN_BEFORE and open.type != OPEN_AFTER) {
       throw std::logic_error("expected doc opening (e.g., /**, /**<, ///, ///<, etc.), but got other");
     }
@@ -204,12 +220,15 @@ public:
         } else if (command == "param[out]") {
           sink.println();
           style.param_out(tokenizer.consume(WORD).view());
+          indent_section();
         } else if (command == "param[in,out]") {
           sink.println();
           style.param_in_out(tokenizer.consume(WORD).view());
+          indent_section();
         } else if (command == "tparam") {
           sink.println();
           style.tparam(tokenizer.consume(WORD).view());
+          indent_section();
         } else if (command == "p") {
           sink.print("**`{}`**", tokenizer.consume(WORD).view());
         } else if (command == "return" ||
@@ -217,19 +236,24 @@ public:
                     command == "result") {
           sink.println();
           style.return_();
+          indent_section();
         } else if (command == "pre") {
           sink.println();
           style.pre();
+          indent_section();
         } else if (command == "post") {
           sink.println();
           style.post();
+          indent_section();
         } else if (command == "throw") {
           sink.println();
           style.throw_();
+          indent_section();
         } else if (command == "see" ||
                     command == "sa") {
           sink.println();
           style.see();
+          indent_section();
         } else if (command == "anchor") {
           sink.print("<a name=\"{}\"></a>", tokenizer.consume(WORD).view());
         } else if (command == "note" ||

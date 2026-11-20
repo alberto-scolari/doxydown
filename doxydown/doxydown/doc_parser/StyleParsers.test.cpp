@@ -357,6 +357,15 @@ TEST(StyleParsersOtherStyles, SectionContinuationIsNotIndented) {
     "\n\n  - **Return**\n\n\n     First\nsecond.\n");
 }
 
+TEST(StyleParsersOtherStyles, AdmonitionBodyOnSameLineStaysThere) {
+  // only MkDocs moves the inline body of an admonition to a new line
+  const std::string comment = "/** @todo T. @note N. */";
+  EXPECT_EQ(make_doc_parser(StyleOption::PANDOCS)->parse(TextLineCursor(comment)).docs,
+    "\n::: example\n T. \n::: note\n N. \n:::\n:::\n");
+  EXPECT_EQ(make_doc_parser(StyleOption::PLAIN)->parse(TextLineCursor(comment)).docs,
+    "> **To-do**\n>  T. > **NOTE**\n>  N.\n");
+}
+
 TEST(StyleParsersCommands, Sections) {
   EXPECT_EQ(docs_of("/** @pre P. @post Q. @throw E. @see F. @sa G. */"),
     "\n:material-check-circle-outline: **Pre-condition**\n:    P. "
@@ -446,6 +455,29 @@ TEST_P(AdmonitionTest, AfterText) {
     "Text.\n\n!!! " + name + "\n    Body.\n");
 }
 
+TEST_P(AdmonitionTest, BodyOnSameLineMovesToNextLine) {
+  const std::string name = GetParam();
+  EXPECT_EQ(docs_of("/** @" + name + " Body. */"), "\n!!! " + name + "\n    Body.\n");
+  EXPECT_EQ(docs_of("/// @" + name + "   Body."), "\n!!! " + name + "\n    Body.\n");
+}
+
+TEST_P(AdmonitionTest, BodyStartingOnSameLineContinuesOnNextOnes) {
+  const std::string name = GetParam();
+  EXPECT_EQ(docs_of("/**\n * @" + name + " Body line\n * second.\n *\n * After.\n */"),
+    "\n!!! " + name + "\n    Body line\n    second.\n\nAfter.\n");
+}
+
+TEST_P(AdmonitionTest, BodyStartingWithInlineCommand) {
+  const std::string name = GetParam();
+  EXPECT_EQ(docs_of("/** @" + name + " @c code here. */"),
+    "\n!!! " + name + "\n    `code` here.\n");
+}
+
+TEST_P(AdmonitionTest, EmptyAdmonition) {
+  const std::string name = GetParam();
+  EXPECT_EQ(docs_of("/** Text. @" + name + " */"), "Text. \n!!! " + name + "\n");
+}
+
 INSTANTIATE_TEST_SUITE_P(MkDocs, AdmonitionTest, ::testing::Values(
   "note", "abstract", "info", "tip", "success", "question", "warning",
   "failure", "danger", "bug", "example", "quote"));
@@ -460,7 +492,13 @@ class LegacyAdmonitionTest : public ::testing::TestWithParam<LegacyAdmonition> {
 TEST_P(LegacyAdmonitionTest, MapsToMkDocsAdmonition) {
   const auto& [command, header] = GetParam();
   EXPECT_EQ(docs_of(std::string("/** @") + command + "\n * Body.\n *\n * After.\n */"),
-    std::string("\n") + header + "\n\n    Body.\n\nAfter.\n");
+    std::string("\n") + header + "\n    Body.\n\nAfter.\n");
+}
+
+TEST_P(LegacyAdmonitionTest, BodyOnSameLineMovesToNextLine) {
+  const auto& [command, header] = GetParam();
+  EXPECT_EQ(docs_of(std::string("/** @") + command + " Body.\n * More.\n */"),
+    std::string("\n") + header + "\n    Body.\n    More.\n");
 }
 
 INSTANTIATE_TEST_SUITE_P(MkDocs, LegacyAdmonitionTest, ::testing::Values(
@@ -658,12 +696,6 @@ TEST(StyleParsersKnownDefects, DISABLED_RefWithoutTextUsesTarget) {
 
 TEST(StyleParsersKnownDefects, DISABLED_CodeBlockHasNoTrailingEmptyLine) {
   EXPECT_EQ(docs_of("/** @code\n * int x;\n * @endcode\n */"), "\n```\nint x;\n```\n");
-}
-
-TEST(StyleParsersKnownDefects, DISABLED_LegacyAdmonitionWithInlineTextIsIndented) {
-  // the body must be indented by 4 spaces to belong to the admonition
-  EXPECT_EQ(docs_of("/** @todo T. */"), "\n!!! example \"To-do\"\n    T.\n");
-  EXPECT_EQ(docs_of("/** @remark R. */"), "\n!!! quote \"Remark\"\n    R.\n");
 }
 
 }  // namespace

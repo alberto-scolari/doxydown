@@ -29,6 +29,10 @@ struct MkDocsStyle {
    * belong to its definition-list item */
   static constexpr bool indent_sections = true;
 
+  /* text on the same line as an admonition command goes to a new line,
+   * indented to belong to the admonition body */
+  static constexpr bool admonition_body_on_new_line = true;
+
   void end_of_paragraph() {}
 
   void param_in(std::string_view word) {
@@ -61,11 +65,11 @@ struct MkDocsStyle {
     sink.print("\n!!! {}", command);
   }
 
-  void attention() { sink.print("\n!!! warning \"Attention\"\n"); }
+  void attention() { sink.print("\n!!! warning \"Attention\""); }
 
-  void todo() { sink.print("\n!!! example \"To-do\"\n"); }
+  void todo() { sink.print("\n!!! example \"To-do\""); }
 
-  void remark() { sink.print("\n!!! quote \"Remark\"\n"); }
+  void remark() { sink.print("\n!!! quote \"Remark\""); }
 
   void add_indent(int indent) {
     sink.print("{}", repeater{indent});
@@ -76,6 +80,8 @@ struct PandocStyle {
   ossink_t &sink;
 
   static constexpr bool indent_sections = false;
+
+  static constexpr bool admonition_body_on_new_line = false;
 
   void end_of_paragraph() {
     sink.print("\n:::");
@@ -125,6 +131,8 @@ struct PlainStyle {
   ossink_t sink;
 
   static constexpr bool indent_sections = false;
+
+  static constexpr bool admonition_body_on_new_line = false;
 
   void end_of_paragraph() {}
 
@@ -195,6 +203,15 @@ public:
       }
     };
 
+    /* an admonition was just opened and its body has not started yet */
+    bool body_pending = false;
+    auto start_admonition = [&indent, &body_pending]() {
+      indent += 4;
+      if constexpr (Style::admonition_body_on_new_line) {
+        body_pending = true;
+      }
+    };
+
     if (open.type != OPEN_BEFORE and open.type != OPEN_AFTER) {
       throw std::logic_error("expected doc opening (e.g., /**, /**<, ///, ///<, etc.), but got other");
     }
@@ -209,6 +226,20 @@ public:
       }
       indent = std::max(indent - 4, 0);
     } else while (token.type) {
+      if (body_pending) {
+        if (token.type & WHITESPACE) {
+          /* drop the spaces between the admonition command and its body */
+          token = tokenizer.next();
+          first = false;
+          continue;
+        }
+        body_pending = false;
+        if (!(token.type & (LINE | PARA | CLOSE))) {
+          /* body on the same line as the command: move it to the next one */
+          sink.print("\n");
+          style.add_indent(indent);
+        }
+      }
       if (token.type & COMMAND) {
         auto command_token = token.substr(1);
         std::string_view command = command_token.view();
@@ -269,7 +300,7 @@ public:
             command == "example" ||
             command == "quote") {
           style.command(command);
-          indent += 4;
+          start_admonition();
         } else if (command == "ingroup") {
           ingroup = tokenizer.consume(WORD).get();
 
@@ -304,13 +335,13 @@ public:
           sink.print("\n```");
         } else if (command == "attention") {
           style.attention();
-          indent += 4;
+          start_admonition();
         } else if (command == "todo") {
           style.todo();
-          indent += 4;
+          start_admonition();
         } else if (command == "remark") {
           style.remark();
-          indent += 4;
+          start_admonition();
         } else if (command == "def" ||
             command == "var" ||
             command == "fn" ||

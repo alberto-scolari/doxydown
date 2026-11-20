@@ -419,11 +419,71 @@ TEST(StyleParsersCommands, Ref) {
   EXPECT_EQ(docs_of("/** See @ref target text. */"), "See [text.](#target)\n");
 }
 
-TEST(StyleParsersCommands, CodeBlock) {
-  const std::string docs = docs_of("/** @code\n * int x;\n * @endcode\n */");
-  EXPECT_THAT(docs, HasSubstr("```\nint x;\n"));
-  EXPECT_EQ(docs.substr(docs.size() - 4), "```\n");
-  EXPECT_EQ(docs_of("/// @verbatim\n/// raw\n/// @endverbatim"), "\n```\nraw\n\n```\n");
+/*
+ * Code blocks
+ */
+
+class CodeBlockFormTest : public ::testing::TestWithParam<CommentForm> {};
+
+TEST_P(CodeBlockFormTest, HasNoEmptyLineBeforeClosingFence) {
+  const std::string comment = make_comment(GetParam(), {"@code", "int x;", "@endcode"});
+  EXPECT_EQ(docs_of(comment), "\n```\nint x;\n```\n");
+}
+
+TEST_P(CodeBlockFormTest, KeepsIndentationAndEmptyLines) {
+  const std::string comment = make_comment(GetParam(),
+    {"Text:", "@code", "if (x) {", "  y();", "", "  z();", "}", "@endcode", "After."});
+  EXPECT_EQ(docs_of(comment), "Text:\n\n```\nif (x) {\n  y();\n\n  z();\n}\n```\nAfter.\n");
+}
+
+INSTANTIATE_TEST_SUITE_P(MkDocs, CodeBlockFormTest, ::testing::ValuesIn(FORMS),
+  [](const auto& info) { return std::string(info.param.name); });
+
+TEST(StyleParsersCodeBlock, Verbatim) {
+  EXPECT_EQ(docs_of("/// @verbatim\n/// raw\n/// @endverbatim"), "\n```\nraw\n```\n");
+}
+
+TEST(StyleParsersCodeBlock, LanguageAttribute) {
+  EXPECT_EQ(docs_of("/** @code{.cpp}\n * int x;\n * @endcode */"), "\n```{.cpp}\nint x;\n```\n");
+}
+
+TEST(StyleParsersCodeBlock, AfterTextOnTheSameLine) {
+  EXPECT_EQ(docs_of("/**\n * Example: @code\n * int x;\n * @endcode\n */"),
+    "Example: \n\n```\nint x;\n```\n");
+}
+
+TEST(StyleParsersCodeBlock, ClosingFenceAfterCodeOnTheSameLine) {
+  EXPECT_EQ(docs_of("/// @code\n/// int x; @endcode"), "\n```\nint x; \n```\n");
+}
+
+TEST(StyleParsersCodeBlock, InsideAdmonition) {
+  EXPECT_EQ(docs_of("/**\n * @note\n * Text:\n * @code\n * int x;\n *\n * int y;\n * @endcode\n"
+      " * After.\n */"),
+    "\n!!! note\n    Text:\n    \n    ```\n    int x;\n\n    int y;\n    ```\n    After.\n");
+}
+
+TEST(StyleParsersCodeBlock, AsAdmonitionBody) {
+  EXPECT_EQ(docs_of("/// @note @code\n/// int x;\n/// @endcode"),
+    "\n!!! note\n    \n    ```\n    int x;\n    ```\n");
+}
+
+TEST(StyleParsersCodeBlock, InsideParam) {
+  EXPECT_EQ(docs_of("/**\n * @param x Example:\n * @code\n * f(x);\n *\n * g(x);\n * @endcode\n */"),
+    "\n:material-location-enter: `x`\n:    Example:\n    \n    ```\n    f(x);\n\n    g(x);\n    ```\n");
+}
+
+TEST(StyleParsersCodeBlock, ParagraphBreakAfterTheBlockEndsAdmonition) {
+  EXPECT_EQ(docs_of("/**\n * @note\n * @code\n * int x;\n * @endcode\n *\n * After.\n */"),
+    "\n!!! note\n    \n    ```\n    int x;\n    ```\n\nAfter.\n");
+}
+
+TEST(StyleParsersOtherStyles, CodeBlockHasNoEmptyLineBeforeClosingFence) {
+  // the code block handling is shared by all styles
+  const std::string comment = "/// @code\n/// int x;\n/// @endcode";
+  EXPECT_EQ(make_doc_parser(StyleOption::PANDOCS)->parse(TextLineCursor(comment)).docs,
+    "\n```\nint x;\n```\n");
+  EXPECT_EQ(make_doc_parser(StyleOption::PLAIN)->parse(TextLineCursor(comment)).docs,
+    "\n```\nint x;\n```\n");
 }
 
 TEST(StyleParsersCommands, MarkdownFencedCodeIsPassedThrough) {
@@ -694,8 +754,9 @@ TEST(StyleParsersKnownDefects, DISABLED_RefWithoutTextUsesTarget) {
   EXPECT_EQ(docs_of("/** @ref target */"), "[target](#target)\n");
 }
 
-TEST(StyleParsersKnownDefects, DISABLED_CodeBlockHasNoTrailingEmptyLine) {
-  EXPECT_EQ(docs_of("/** @code\n * int x;\n * @endcode\n */"), "\n```\nint x;\n```\n");
+TEST(StyleParsersKnownDefects, DISABLED_CommandsInsideCodeBlockAreKeptVerbatim) {
+  EXPECT_EQ(docs_of("/// @code\n/// @param x @c y @note a@@b @@\n/// @endcode"),
+    "\n```\n@param x @c y @note a@@b @@\n```\n");
 }
 
 }  // namespace

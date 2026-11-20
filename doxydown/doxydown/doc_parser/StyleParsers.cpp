@@ -212,6 +212,34 @@ public:
       }
     };
 
+    /* is the output at the start of a line, possibly after its indentation? */
+    bool line_start = true;
+
+    /* are we inside a code block? */
+    bool in_code = false;
+
+    /* code fences take the current indentation, so that code blocks stay
+     * inside the enclosing admonition or section */
+    auto open_code_block = [&]() {
+      /* the opening fence is preceded by an empty line */
+      if (!line_start) {
+        sink.println();
+      }
+      sink.println();
+      style.add_indent(indent);
+      sink.print("```");
+      in_code = true;
+    };
+
+    auto close_code_block = [&]() {
+      if (!line_start) {
+        sink.println();
+        style.add_indent(indent);
+      }
+      sink.print("```");
+      in_code = false;
+    };
+
     if (open.type != OPEN_BEFORE and open.type != OPEN_AFTER) {
       throw std::logic_error("expected doc opening (e.g., /**, /**<, ///, ///<, etc.), but got other");
     }
@@ -238,6 +266,7 @@ public:
           /* body on the same line as the command: move it to the next one */
           sink.print("\n");
           style.add_indent(indent);
+          line_start = true;
         }
       }
       if (token.type & COMMAND) {
@@ -329,10 +358,11 @@ public:
           auto text = tokenizer.consume(WORD).view();
           sink.print("[{}](#{})", text, href);
         } else if (command == "code" ||
-            command == "endcode" ||
-            command == "verbatim" ||
+            command == "verbatim") {
+          open_code_block();
+        } else if (command == "endcode" ||
             command == "endverbatim") {
-          sink.print("\n```");
+          close_code_block();
         } else if (command == "attention") {
           style.attention();
           start_admonition();
@@ -373,6 +403,12 @@ public:
           }
           sink.print("{}", token.view());
         }
+      } else if ((token.type & PARA) and in_code) {
+        /* an empty line inside a code block ends neither the block nor the
+         * enclosing admonition or section */
+        sink.println();
+        sink.println();
+        style.add_indent(indent);
       } else if (token.type & PARA) {
         if (!first) {
           if (indent) {
@@ -395,6 +431,11 @@ public:
       } else {
         style.add_indent(first * indent);  // indent on first token
         sink.print("{}", token.view());
+      }
+      if (token.type & (LINE | PARA)) {
+        line_start = true;
+      } else if (!(token.type & WHITESPACE)) {
+        line_start = false;
       }
       token = tokenizer.next();
       first = false;

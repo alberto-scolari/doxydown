@@ -13,11 +13,6 @@ void TextLineCursor::advance(std::size_t length) {
   _data = _data.substr(length);
 }
 
-void TextLineCursor::clear() noexcept {
-  _data = std::string_view();
-  _line_num = 0;
-}
-
 void TextLineCursor::check_start(const_iterator start) const {
   if (start < cbegin()) {
     throw std::out_of_range("start is before beginning");
@@ -39,12 +34,12 @@ std::size_t TextLineCursor::count_lines_in_range(const_iterator start, const_ite
 
 std::size_t TextLineCursor::count_lines_in_range(const_iterator start, std::size_t length) const {
   std::string_view subs = _data.substr(std::distance(_data.cbegin(), start), length);
-  return count_lines_in_range(start, subs.cend());
+  return _do_count_lines_in_range(subs.begin(), subs.cend());
 }
 
 std::size_t TextLineCursor::count_lines_in_range(std::size_t start, std::size_t length) const {
   std::string_view subs = _data.substr(start, length);
-  return count_lines_in_range(subs.cbegin(), subs.cend());
+  return _do_count_lines_in_range(subs.cbegin(), subs.cend());
 }
 
 std::size_t TextLineCursor::_do_count_lines_in_range(const_iterator start, const_iterator end) const {

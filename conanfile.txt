@@ -4,6 +4,9 @@ cli11/2.7.2
 p-ranav-glob/0.0.1
 tree-sitter-cuda/0.21.2
 
+[test_requires]
+gtest/1.18.0
+
 [generators]
 # this generator requires conan >=2.25 (pip upgrade conan)
 CMakeConfigDeps

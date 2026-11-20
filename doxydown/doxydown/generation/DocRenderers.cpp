@@ -69,12 +69,12 @@ struct MkdDocRender {
   template<entity U> void print_detail(const FwdRef<U>& e, std::string_view name) {
     static const std::regex start("\\n", REGEX_FLAGS);
     // std::regex_replace requires exactly a string
-    static const std::string IND{INDENT};
+    static const std::string NI{NEWLINE_INDENT};
     sink.print("!!! {1} \"{2}\"\n{0}\n{0}",
-      IND, name, html_escaped(get_line(e->get_decl())));
+      INDENT, name, html_escaped(get_line(e->get_decl())));
     std::string_view docs = e->get_docs();
-    std::regex_replace(sink.iter(), docs.cbegin(), docs.cend(), start, IND);
-    sink.println("\n{}\n", IND);
+    std::regex_replace(sink.iter(), docs.cbegin(), docs.cend(), start, NI);
+    sink.println("\n{}\n", INDENT);
   }
 
   void print_detail(const FwdRef<TypedefEntity>& e) {

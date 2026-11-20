@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iterator>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -24,6 +25,14 @@ using ossink_t = _sink_t<std::ostringstream, std::ostreambuf_iterator<char>>;
 
 struct MkDocsStyle {
   ossink_t &sink;
+
+  /* continuation lines of a section (@param, @return, etc.) are indented to
+   * belong to its definition-list item */
+  static constexpr bool indent_sections = true;
+
+  /* text on the same line as an admonition command goes to a new line,
+   * indented to belong to the admonition body */
+  static constexpr bool admonition_body_on_new_line = true;
 
   void end_of_paragraph() {}
 
@@ -57,11 +66,11 @@ struct MkDocsStyle {
     sink.print("\n!!! {}", command);
   }
 
-  void attention() { sink.print("\n!!! warning \"Attention\"\n"); }
+  void attention() { sink.print("\n!!! warning \"Attention\""); }
 
-  void todo() { sink.print("\n!!! example \"To-do\"\n"); }
+  void todo() { sink.print("\n!!! example \"To-do\""); }
 
-  void remark() { sink.print("\n!!! quote \"Remark\"\n"); }
+  void remark() { sink.print("\n!!! quote \"Remark\""); }
 
   void add_indent(int indent) {
     sink.print("{}", repeater{indent});
@@ -70,6 +79,10 @@ struct MkDocsStyle {
 
 struct PandocStyle {
   ossink_t &sink;
+
+  static constexpr bool indent_sections = false;
+
+  static constexpr bool admonition_body_on_new_line = false;
 
   void end_of_paragraph() {
     sink.print("\n:::");
@@ -118,6 +131,10 @@ struct PandocStyle {
 struct PlainStyle {
   ossink_t sink;
 
+  static constexpr bool indent_sections = false;
+
+  static constexpr bool admonition_body_on_new_line = false;
+
   void end_of_paragraph() {}
 
   void param_in(std::string_view word) {
@@ -164,6 +181,17 @@ struct PlainStyle {
 };
 
 
+/**
+ * Split the trailing punctuation from a word, e.g. "word)." into "word" and
+ * ").".
+ */
+static std::pair<std::string_view, std::string_view> split_trailing_punctuation(
+    std::string_view word) {
+  const auto end = word.find_last_not_of(".,;:!?)");
+  const auto len = end == std::string_view::npos ? 0 : end + 1;
+  return {word.substr(0, len), word.substr(len)};
+}
+
 template<typename Style> class BaseParser: public DocParser {
 public:
 
@@ -179,6 +207,93 @@ public:
     Style style(sink);
     TextLineCursor ingroup;
 
+    /* indent the continuation lines of the section just started; @param and
+     * @param[in] always do it, regardless of the style */
+    auto indent_section = [&]() {
+      if constexpr (Style::indent_sections) {
+        indent = 4;
+      }
+    };
+
+    /* an admonition was just opened and its body has not started yet */
+    bool body_pending = false;
+    auto start_admonition = [&]() {
+      indent += 4;
+      if constexpr (Style::admonition_body_on_new_line) {
+        body_pending = true;
+      }
+    };
+
+    /* is the output at the start of a line, possibly after its indentation? */
+    bool line_start = true;
+
+    /* is the output at the start of the docs or after an empty line? */
+    bool after_blank = true;
+
+    /* are we inside a code block? */
+    bool in_code = false;
+
+    /* are we inside a list started by @li or @arg? */
+    bool in_list = false;
+
+    /* each list item starts on its own line, at the current indentation; the
+     * first item of a list is preceded by an empty line, as Markdown requires
+     * to separate a list from the preceding paragraph */
+    /* next word on the current line, after spaces; if there is none, the
+     * tokenizer is left untouched */
+    auto next_word_on_line = [&tokenizer]() -> std::optional<std::string_view> {
+      DocTokenizer saved = tokenizer;
+      DocToken t = tokenizer.next();
+      while (t.type & WHITESPACE) {
+        t = tokenizer.next();
+      }
+      if (t.type & WORD) {
+        return t.view();
+      }
+      tokenizer = saved;
+      return std::nullopt;
+    };
+
+    auto start_list_item = [&]() {
+      if (!line_start) {
+        sink.println();
+        style.add_indent(indent);
+      }
+      if (!in_list and !after_blank) {
+        sink.println();
+        style.add_indent(indent);
+      }
+      sink.print("- ");
+      in_list = true;
+      /* drop the spaces between the command and the text of the item */
+      DocTokenizer after_command = tokenizer;
+      if (!(tokenizer.next().type & WHITESPACE)) {
+        tokenizer = after_command;
+      }
+    };
+
+    /* code fences take the current indentation, so that code blocks stay
+     * inside the enclosing admonition or section */
+    auto open_code_block = [&]() {
+      /* the opening fence is preceded by an empty line */
+      if (!line_start) {
+        sink.println();
+      }
+      sink.println();
+      style.add_indent(indent);
+      sink.print("```");
+      in_code = true;
+    };
+
+    auto close_code_block = [&]() {
+      if (!line_start) {
+        sink.println();
+        style.add_indent(indent);
+      }
+      sink.print("```");
+      in_code = false;
+    };
+
     if (open.type != OPEN_BEFORE and open.type != OPEN_AFTER) {
       throw std::logic_error("expected doc opening (e.g., /**, /**<, ///, ///<, etc.), but got other");
     }
@@ -193,6 +308,21 @@ public:
       }
       indent = std::max(indent - 4, 0);
     } else while (token.type) {
+      if (body_pending) {
+        if (token.type & WHITESPACE) {
+          /* drop the spaces between the admonition command and its body */
+          token = tokenizer.next();
+          first = false;
+          continue;
+        }
+        body_pending = false;
+        if (!(token.type & (LINE | PARA | CLOSE))) {
+          /* body on the same line as the command: move it to the next one */
+          sink.print("\n");
+          style.add_indent(indent);
+          line_start = true;
+        }
+      }
       if (token.type & COMMAND) {
         auto command_token = token.substr(1);
         std::string_view command = command_token.view();
@@ -204,12 +334,15 @@ public:
         } else if (command == "param[out]") {
           sink.println();
           style.param_out(tokenizer.consume(WORD).view());
+          indent_section();
         } else if (command == "param[in,out]") {
           sink.println();
           style.param_in_out(tokenizer.consume(WORD).view());
+          indent_section();
         } else if (command == "tparam") {
           sink.println();
           style.tparam(tokenizer.consume(WORD).view());
+          indent_section();
         } else if (command == "p") {
           sink.print("**`{}`**", tokenizer.consume(WORD).view());
         } else if (command == "return" ||
@@ -217,19 +350,24 @@ public:
                     command == "result") {
           sink.println();
           style.return_();
+          indent_section();
         } else if (command == "pre") {
           sink.println();
           style.pre();
+          indent_section();
         } else if (command == "post") {
           sink.println();
           style.post();
+          indent_section();
         } else if (command == "throw") {
           sink.println();
           style.throw_();
+          indent_section();
         } else if (command == "see" ||
                     command == "sa") {
           sink.println();
           style.see();
+          indent_section();
         } else if (command == "anchor") {
           sink.print("<a name=\"{}\"></a>", tokenizer.consume(WORD).view());
         } else if (command == "note" ||
@@ -245,7 +383,7 @@ public:
             command == "example" ||
             command == "quote") {
           style.command(command);
-          indent += 4;
+          start_admonition();
         } else if (command == "ingroup") {
           ingroup = tokenizer.consume(WORD).get();
 
@@ -268,25 +406,51 @@ public:
           sink.print("$$", tokenizer.consume(WORD).view());
         } else if (command == "li" ||
             command == "arg") {
-          sink.print("  - ", tokenizer.consume(WORD).view());
+          start_list_item();
         } else if (command == "ref") {
-          auto href = tokenizer.consume(WORD).view();
-          auto text = tokenizer.consume(WORD).view();
-          sink.print("[{}](#{})", text, href);
+          /* `@ref target [text]`, both words on the same line as the command;
+           * without text, the target is used; trailing punctuation goes after
+           * the link and ends the reference */
+          auto first_word = next_word_on_line();
+          auto [target, punctuation] = first_word ?
+            split_trailing_punctuation(*first_word) :
+            std::pair<std::string_view, std::string_view>{};
+          if (target.empty()) {
+            warn("line " << command_token.get_line_number()
+              << ": '@ref' without a target");
+            sink.print("{}", punctuation);
+          } else {
+            std::string_view text = target;
+            if (punctuation.empty()) {
+              DocTokenizer after_target = tokenizer;
+              if (auto second_word = next_word_on_line()) {
+                auto [word, word_punctuation] = split_trailing_punctuation(*second_word);
+                if (word.empty()) {
+                  /* only punctuation, e.g. `@ref target ,`: leave it as text */
+                  tokenizer = after_target;
+                } else {
+                  text = word;
+                  punctuation = word_punctuation;
+                }
+              }
+            }
+            sink.print("[{}](#{}){}", text, target, punctuation);
+          }
         } else if (command == "code" ||
-            command == "endcode" ||
-            command == "verbatim" ||
+            command == "verbatim") {
+          open_code_block();
+        } else if (command == "endcode" ||
             command == "endverbatim") {
-          sink.print("\n```");
+          close_code_block();
         } else if (command == "attention") {
           style.attention();
-          indent += 4;
+          start_admonition();
         } else if (command == "todo") {
           style.todo();
-          indent += 4;
+          start_admonition();
         } else if (command == "remark") {
           style.remark();
-          indent += 4;
+          start_admonition();
         } else if (command == "def" ||
             command == "var" ||
             command == "fn" ||
@@ -318,6 +482,12 @@ public:
           }
           sink.print("{}", token.view());
         }
+      } else if ((token.type & PARA) and in_code) {
+        /* an empty line inside a code block ends neither the block nor the
+         * enclosing admonition or section */
+        sink.println();
+        sink.println();
+        style.add_indent(indent);
       } else if (token.type & PARA) {
         if (!first) {
           if (indent) {
@@ -340,6 +510,18 @@ public:
       } else {
         style.add_indent(first * indent);  // indent on first token
         sink.print("{}", token.view());
+      }
+      if (token.type & PARA) {
+        line_start = true;
+        after_blank = true;
+        /* an empty line ends the list */
+        in_list = in_list and in_code;
+      } else if (token.type & LINE) {
+        line_start = true;
+        after_blank = after_blank and first;  // the first line break prints nothing
+      } else if (!(token.type & WHITESPACE)) {
+        line_start = false;
+        after_blank = false;
       }
       token = tokenizer.next();
       first = false;

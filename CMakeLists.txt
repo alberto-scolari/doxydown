@@ -57,8 +57,10 @@ configure_file(
   ${CMAKE_BINARY_DIR}/generated/doxydown/config/config.h
 )
 
-add_executable(doxydown
-  doxydown/doxydown/doxydown.cpp
+option(DOXYDOWN_BUILD_TESTS "Build the unit tests (requires GTest)" ON)
+
+# all sources except the entry point, shared between the executable and tests
+add_library(doxydown_core STATIC
   doxydown/doxydown/CppParser.cpp
   doxydown/doxydown/Driver.cpp
   doxydown/doxydown/DriverConfigParser.cpp
@@ -82,14 +84,36 @@ add_executable(doxydown
   doxydown/doxydown/generation/MdCoverageGenerator.cpp
   doxydown/doxydown/generation/Sanitize.cpp
 )
-target_include_directories(doxydown
-  PRIVATE doxydown ${CMAKE_BINARY_DIR}/generated
+
+target_include_directories(doxydown_core
+  PUBLIC doxydown ${CMAKE_BINARY_DIR}/generated
 )
 
-target_link_libraries(doxydown
-  yaml tree-sitter-cuda::tree-sitter-cuda
+target_link_libraries(doxydown_core
+  PUBLIC yaml tree-sitter-cuda::tree-sitter-cuda
   CLI11::CLI11 p-ranav-glob::p-ranav-glob
 )
+
+add_executable(doxydown doxydown/doxydown/doxydown.cpp)
+target_link_libraries(doxydown PRIVATE doxydown_core)
+
+if(DOXYDOWN_BUILD_TESTS)
+  find_package(GTest REQUIRED)
+  enable_testing()
+  include(GoogleTest)
+  # unit tests live next to the sources they test, as <Source>.test.cpp
+  set(DOXYDOWN_TEST_SOURCES
+    "${PROJECT_SOURCE_DIR}/doxydown/doxydown/CppParser.test.cpp"
+    "${PROJECT_SOURCE_DIR}/doxydown/doxydown/TextLineCursor.test.cpp"
+    "${PROJECT_SOURCE_DIR}/doxydown/doxydown/doc_parser/StyleParsers.test.cpp"
+  )
+  add_executable(doxydown_tests ${DOXYDOWN_TEST_SOURCES})
+  target_link_libraries(doxydown_tests PRIVATE doxydown_core GTest::gmock GTest::gtest_main)
+  target_compile_definitions(doxydown_tests PRIVATE
+    DOXYDOWN_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+  )
+  gtest_discover_tests(doxydown_tests)
+endif()
 
 include(GNUInstallDirs)
 install(TARGETS doxydown RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

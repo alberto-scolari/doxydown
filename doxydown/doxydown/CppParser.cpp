@@ -92,9 +92,12 @@ static constexpr bool cannot_contain_subentities(const RefVariant& ref) {
   return ref.is_type<VariableEntity>();
 }
 
-std::stack<CppParser::StackEntry>::const_reference CppParser::pop_entities_downto_parent(uint32_t start, [[maybe_unused]] uint32_t end) {
+std::stack<CppParser::StackEntry>::const_reference CppParser::pop_entities_downto_parent([[maybe_unused]] uint32_t start, uint32_t end) {
   while(entities_stack.size() > 0 and
-    (entities_stack.top().end < start
+    // a parent must enclose the whole entity: e.g. in `struct S { ... } s;` the
+    // variable s is reported after S and starts with it, but S does not
+    // enclose s, which therefore becomes a sibling of S
+    (entities_stack.top().end < end
       or cannot_contain_subentities(entities_stack.top().ref)
     )
   ) {
@@ -121,13 +124,13 @@ std::stack<CppParser::StackEntry>::reference CppParser::push(RefVariant ref, uin
 static const std::regex comment_regex(
   R"(^\s*)" // beginning of string, than any whitespace (ignore)
   R"((?:)"  // start of non-capturing group
-  R"((\/\*[\*|!])(?!<))" // (1) opening comment /** or /*!
+  R"((\/\*(?:\*(?!\/)|!))(?!<))" // (1) opening comment /** or /*! (but not the empty /**/)
   R"(|)"
   R"((\/\/\/)(?!<))" // (2) line continuation comment /// (without <)
   R"(|)"
   R"((\/\/!)(?!<))" // (3) Qt line continuation comment //! (without <)
   R"(|)"
-  R"((\/\*[\*|!]<))" // (4) backward opening comment /**< or /*!<
+  R"((\/\*[\*!]<))" // (4) backward opening comment /**< or /*!<
   R"(|)"
   R"((\/\/\/<))" // (5) backward-looking comment ///<
   R"(|)"
@@ -198,7 +201,9 @@ RefVariant make_entity(
   const bool visible = not doc.docs.empty();
   std::optional<RefVariant> result_opt;
   QueryCppNodes id = match_state.entity_type;
-  uint32_t start_line = match_state.get_start().line;
+  uint32_t start_line = match_state.template_decl.is_valid() ?
+    match_state.template_decl.start.line :
+    match_state.get_start().line;
   uint32_t end_line = match_state.get_end().line;
   std::string_view template_decl = match_state.template_decl.is_valid() ?
     match_state.template_decl.within(content) : "";
@@ -478,6 +483,8 @@ void CppParser::parse_entities(
   while (ts_query_cursor_next_match(cursor.get(), &match)) {
     MatchAction action{MatchAction::NOTHING};
     bool matching_template = false;
+
+    // std::cout << "%%% begin match sequence %%%" << std::endl;
 
     for (uint16_t i = 0; i < match.capture_count; ++i) {
       node = match.captures[i].node;

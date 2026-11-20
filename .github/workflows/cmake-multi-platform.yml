@@ -8,7 +8,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build:
+  test:
     strategy:
       # TODO: once stabilized, set fail-fast to true to ensure;
       # otherwise, feedback is delivered for all matrix combinations regardless
@@ -28,6 +28,11 @@ jobs:
             cpp_compiler: clang++
 
     runs-on: ${{ matrix.os }}
+
+    permissions:
+      checks: write
+      contents: read
+
     steps:
     - uses: actions/checkout@v7
 
@@ -58,8 +63,55 @@ jobs:
       # both 'conan-debug' and 'conan-release' (but only 'conan-debug' is activated)
       run:
         cmake -S ${{ github.workspace }} --preset ${{ runner.os == 'Windows' && 'conan-default' || 'conan-debug' }}
+
     - name: Build
-      run: cmake --build --preset conan-debug
-    - name: Test
-      working-directory: ${{ steps.strings.outputs.build_out_dir }}
-      run: Debug/doxydown --version
+      run: cmake --build --preset conan-debug --parallel
+
+    - name: Unit test
+      # ctest --preset conan-debug --output-on-failure --output-junit "${{ github.workspace }}/unit-tests-${{ matrix.os }}.xml"
+      # call the test binary directly for faster (100x) execution: this way, the query
+      # parser is built only once
+      run: |
+        ./build/Debug/doxydown --version
+        ./build/Debug/doxydown_tests --gtest_output=xml:${{ github.workspace }}/unit-tests-${{ matrix.os }}.xml
+
+    - name: Normalize GTest attributes
+      if: ${{ !cancelled() }}
+      shell: python
+      run: |
+        import glob
+        import xml.etree.ElementTree as ET
+
+        for path in glob.glob("test-results/*.xml"):
+            tree = ET.parse(path)
+            changed = False
+            for tc in tree.findall(".//testcase"):
+                if (tc.get("result") == "skipped" or tc.get("status") == "notrun") and tc.find("skipped") is None:
+                    ET.SubElement(tc, "skipped")
+                    changed = True
+            if changed:
+                tree.write(path, encoding="utf-8", xml_declaration=True)
+
+    - name: Publish Test Results
+      if: ${{ !cancelled() }}
+      uses: mikepenz/action-junit-report@v6
+      with:
+        check_name: Unit Test Results for ${{ matrix.os }}
+        report_paths: unit-tests-${{ matrix.os }}.xml
+        commit: ${{ github.event.pull_request.head.sha || github.sha }}
+        comment: false
+        skip_annotations: true
+        require_tests: true # Alerts you if the XML path didn't match anything
+        job_summary: true # Ensures the summary table is written to the Actions run page
+        detailed_summary: false # Adds a full breakdown table of all test cases
+        failed_summary: true # Include the failed tests in the detailed summary
+        failed_summary_logs: true # Show failed tests as collapsible blocks with the error message
+        include_time_in_summary: true
+
+    - name: Upload JUnit XML
+      uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        path: ${{ github.workspace }}/unit-tests-${{ matrix.os }}.xml
+        name: unit-tests-${{ matrix.os }}
+        retention-days: 14

@@ -140,6 +140,9 @@ const FormCase FORM_CASES[] = {
     {"@note", "Body line", "second.", "", "After."},
     "\n!!! note\n    Body line\n    second.\n\nAfter.\n"},
   {"IngroupIsRemovedFromDocs", {"@ingroup grp", "Text."}, "\nText.\n"},
+  {"Refs",
+    {"See @ref target text.", "Also @ref other"},
+    "See [text](#target).\nAlso [other](#other)\n"},
   {"ListItems",
     {"Items:", "@li One.", "@arg Two.", "", "After."},
     "Items:\n\n- One.\n- Two.\n\nAfter.\n"},
@@ -418,8 +421,59 @@ TEST(StyleParsersCommands, Anchor) {
   EXPECT_EQ(docs_of("/** @anchor here Text. */"), "<a name=\"here\"></a> Text.\n");
 }
 
-TEST(StyleParsersCommands, Ref) {
-  EXPECT_EQ(docs_of("/** See @ref target text. */"), "See [text.](#target)\n");
+TEST(StyleParsersRef, TargetAndText) {
+  EXPECT_EQ(docs_of("/** See @ref target text. */"), "See [text](#target).\n");
+  EXPECT_EQ(docs_of("/** See @ref target text */"), "See [text](#target)\n");
+  EXPECT_EQ(docs_of("/** See @ref   target   text and more. */"), "See [text](#target) and more.\n");
+}
+
+TEST(StyleParsersRef, WithoutTextUsesTarget) {
+  EXPECT_EQ(docs_of("/** @ref target */"), "[target](#target)\n");
+  EXPECT_EQ(docs_of("/// @ref target"), "[target](#target)\n");
+  EXPECT_EQ(docs_of("/** See @ref target. */"), "See [target](#target).\n");
+}
+
+TEST(StyleParsersRef, TrailingPunctuationGoesAfterTheLink) {
+  EXPECT_EQ(docs_of("/** (see @ref target text) */"), "(see [text](#target))\n");
+  EXPECT_EQ(docs_of("/** (see @ref target) */"), "(see [target](#target))\n");
+  EXPECT_EQ(docs_of("/** @ref target text, more. */"), "[text](#target), more.\n");
+  EXPECT_EQ(docs_of("/** @ref target text?! */"), "[text](#target)?!\n");
+}
+
+TEST(StyleParsersRef, PunctuationAfterTargetEndsTheReference) {
+  EXPECT_EQ(docs_of("/** @ref target, then text. */"), "[target](#target), then text.\n");
+  EXPECT_EQ(docs_of("/** @ref target. Next sentence. */"), "[target](#target). Next sentence.\n");
+}
+
+TEST(StyleParsersRef, StandalonePunctuationAfterTargetIsNotText) {
+  EXPECT_EQ(docs_of("/** @ref target . */"), "[target](#target) .\n");
+  EXPECT_EQ(docs_of("/** @ref target , more */"), "[target](#target) , more\n");
+}
+
+TEST(StyleParsersRef, TextIsNotTakenFromNextLine) {
+  EXPECT_EQ(docs_of("/// See @ref target\n/// next line."), "See [target](#target)\nnext line.\n");
+  EXPECT_EQ(docs_of("/**\n * See @ref target\n * next line.\n */"), "See [target](#target)\nnext line.\n");
+}
+
+TEST(StyleParsersRef, TextIsNotTakenFromNextParagraph) {
+  EXPECT_EQ(docs_of("/// @ref target\n///\n/// Next."), "[target](#target)\n\nNext.\n");
+}
+
+TEST(StyleParsersRef, TextIsNotACommand) {
+  EXPECT_EQ(docs_of("/** @ref target @c x */"), "[target](#target) `x`\n");
+}
+
+TEST(StyleParsersRef, WithoutTargetIsDropped) {
+  EXPECT_EQ(docs_of("/** See @ref */"), "See\n");
+  EXPECT_EQ(docs_of("/// See @ref\n/// target"), "See \ntarget\n");
+  EXPECT_EQ(docs_of("/** See @ref. */"), "See .\n");
+  EXPECT_EQ(docs_of("/** See @ref @c x */"), "See  `x`\n");
+}
+
+TEST(StyleParsersRef, Several) {
+  EXPECT_EQ(docs_of("/** @ref a A, @ref b B and @ref c. */"), "[A](#a), [B](#b) and [c](#c).\n");
+  // the word after the target is always the text
+  EXPECT_EQ(docs_of("/** @ref b and more */"), "[and](#b) more\n");
 }
 
 /*
@@ -826,10 +880,6 @@ INSTANTIATE_TEST_SUITE_P(MkDocs, AnnotationsDemoTest, ::testing::ValuesIn(FORMS)
  * Known defects: these tests describe the expected behavior and are disabled
  * until the parser is fixed.
  */
-
-TEST(StyleParsersKnownDefects, DISABLED_RefWithoutTextUsesTarget) {
-  EXPECT_EQ(docs_of("/** @ref target */"), "[target](#target)\n");
-}
 
 TEST(StyleParsersKnownDefects, DISABLED_CommandsInsideCodeBlockAreKeptVerbatim) {
   EXPECT_EQ(docs_of("/// @code\n/// @param x @c y @note a@@b @@\n/// @endcode"),

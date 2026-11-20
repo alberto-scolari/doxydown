@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cctype>
 #include <iterator>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -180,6 +181,17 @@ struct PlainStyle {
 };
 
 
+/**
+ * Split the trailing punctuation from a word, e.g. "word)." into "word" and
+ * ").".
+ */
+static std::pair<std::string_view, std::string_view> split_trailing_punctuation(
+    std::string_view word) {
+  const auto end = word.find_last_not_of(".,;:!?)");
+  const auto len = end == std::string_view::npos ? 0 : end + 1;
+  return {word.substr(0, len), word.substr(len)};
+}
+
 template<typename Style> class BaseParser: public DocParser {
 public:
 
@@ -227,6 +239,21 @@ public:
     /* each list item starts on its own line, at the current indentation; the
      * first item of a list is preceded by an empty line, as Markdown requires
      * to separate a list from the preceding paragraph */
+    /* next word on the current line, after spaces; if there is none, the
+     * tokenizer is left untouched */
+    auto next_word_on_line = [&tokenizer]() -> std::optional<std::string_view> {
+      DocTokenizer saved = tokenizer;
+      DocToken t = tokenizer.next();
+      while (t.type & WHITESPACE) {
+        t = tokenizer.next();
+      }
+      if (t.type & WORD) {
+        return t.view();
+      }
+      tokenizer = saved;
+      return std::nullopt;
+    };
+
     auto start_list_item = [&]() {
       if (!line_start) {
         sink.println();
@@ -381,9 +408,34 @@ public:
             command == "arg") {
           start_list_item();
         } else if (command == "ref") {
-          auto href = tokenizer.consume(WORD).view();
-          auto text = tokenizer.consume(WORD).view();
-          sink.print("[{}](#{})", text, href);
+          /* `@ref target [text]`, both words on the same line as the command;
+           * without text, the target is used; trailing punctuation goes after
+           * the link and ends the reference */
+          auto first_word = next_word_on_line();
+          auto [target, punctuation] = first_word ?
+            split_trailing_punctuation(*first_word) :
+            std::pair<std::string_view, std::string_view>{};
+          if (target.empty()) {
+            warn("line " << command_token.get_line_number()
+              << ": '@ref' without a target");
+            sink.print("{}", punctuation);
+          } else {
+            std::string_view text = target;
+            if (punctuation.empty()) {
+              DocTokenizer after_target = tokenizer;
+              if (auto second_word = next_word_on_line()) {
+                auto [word, word_punctuation] = split_trailing_punctuation(*second_word);
+                if (word.empty()) {
+                  /* only punctuation, e.g. `@ref target ,`: leave it as text */
+                  tokenizer = after_target;
+                } else {
+                  text = word;
+                  punctuation = word_punctuation;
+                }
+              }
+            }
+            sink.print("[{}](#{}){}", text, target, punctuation);
+          }
         } else if (command == "code" ||
             command == "verbatim") {
           open_code_block();
